@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vav Shop - Seller Admin</title>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f6f8;
+            color: #333;
+        }
+
+        header {
+            background-color: #1a1a2e;
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-badge {
+            background-color: #2ec4b6;
+            color: #1a1a2e;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .controls-bar {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .btn {
+            background-color: #2ec4b6;
+            color: #1a1a2e;
+            font-weight: bold;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .btn:hover {
+            background-color: #20a39e;
+            color: white;
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Order Cards */
+        .order-item {
+            border: 1px solid #e0e0e0;
+            border-left: 5px solid #2ec4b6;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: #fafafa;
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .order-details {
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 0.5rem;
+        }
+
+        .order-items-list {
+            background: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            border: 1px dashed #ccc;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        /* Stock Management Table */
+        .stock-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .stock-table th, .stock-table td {
+            padding: 0.6rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+
+        .stock-input {
+            width: 60px;
+            padding: 0.3rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .btn-small {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>⚡ vav Shop - Seller Dashboard</h1>
+        <span class="status-badge" id="connectionStatus">Connecting...</span>
+    </header>
+
+    <main class="container">
+        
+        <div class="controls-bar">
+            <div>
+                <strong>Notifications: </strong>
+                <span id="notifStatus">Disabled</span>
+            </div>
+            <button class="btn" onclick="enableNotifications()">🔔 Enable Audio & Desktop Alerts</button>
+        </div>
+
+        <div class="grid-layout">
+            
+            <section>
+                <div class="card">
+                    <h2 class="section-title">
+                        📦 Live Incoming Orders
+                        <span id="orderCount" style="font-size: 0.9rem; color: #2ec4b6;">(0)</span>
+                    </h2>
+                    <div id="ordersFeed">
+                        <p style="text-align: center; color: #888;">Listening for new orders...</p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <div class="card">
+                    <h2 class="section-title">📊 Quick Stock Edit</h2>
+                    <div id="stockControl">
+                        <p style="text-align: center; color: #888;">Loading stock levels...</p>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+    </main>
+
+    <script>
+        // Firebase Configuration (Matching your Shop details)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDwDe910zdnwDi8Cns-AFkCMZbxXzddJuA",
+            authDomain: "server-bc966.firebaseapp.com",
+            databaseURL: "https://server-bc966-default-rtdb.firebaseio.com",
+            projectId: "server-bc966",
+            storageBucket: "server-bc966.firebasestorage.app",
+            messagingSenderId: "658451047484",
+            appId: "1:658451047484:web:38d3fa3cd5b969b9d6cf39",
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let isFirstLoad = true;
+        let audioCtx = null;
+
+        // Check Connection Status
+        database.ref('.info/connected').on('value', (snap) => {
+            const statusEl = document.getElementById('connectionStatus');
+            if (snap.val() === true) {
+                statusEl.innerText = "🟢 Connected Live";
+                statusEl.style.backgroundColor = "#2b9348";
+                statusEl.style.color = "#fff";
+            } else {
+                statusEl.innerText = "🔴 Disconnected";
+                statusEl.style.backgroundColor = "#e63946";
+                statusEl.style.color = "#fff";
+            }
+        });
+
+        // Web Audio Synthesizer (Generates alert sound without needing an external audio file)
+        function playChime() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, now); // D5 note
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.15); // A5 note
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } catch (e) {
+                console.log("Audio play error:", e);
+            }
+        }
+
+        // Enable Desktop & Audio Notifications
+        function enableNotifications() {
+            if ("Notification" in window) {
+                Notification.requestPermission().then(permission => {
+                    const notifStatus = document.getElementById('notifStatus');
+                    if (permission === "granted") {
+                        notifStatus.innerText = "Enabled 🔔";
+                        notifStatus.style.color = "#2b9348";
+                        playChime();
+                        new Notification("vav Shop Admin", {
+                            body: "Notifications active! You will be alerted for new orders."
+                        });
+                    } else {
+                        notifStatus.innerText = "Denied ❌";
+                        notifStatus.style.color = "#e63946";
+                    }
+                });
+            }
+        }
+
+        // Send Notification Alert
+        function triggerOrderAlert(order) {
+            playChime();
+
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("🎉 New Order Received!", {
+                    body: `${order.fullName} (${order.shippingAddress}) ordered ${order.itemsClaimed ? order.itemsClaimed.length : 0} item(s)!`,
+                    icon: "https://cdn-icons-png.flaticon.com/512/3144/3144456.png"
+                });
+            }
+        }
+
+        // Listen for Realtime Orders
+        function listenToOrders() {
+            const ordersRef = database.ref('orders');
+
+            ordersRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                const ordersFeed = document.getElementById('ordersFeed');
+                const orderCount = document.getElementById('orderCount');
+
+                if (!data) {
+                    ordersFeed.innerHTML = '<p style="text-align: center; color: #888;">No orders placed yet.</p>';
+                    orderCount.innerText = "(0)";
+                    isFirstLoad = false;
+                    return;
+                }
+
+                // Convert object to array and reverse to show newest first
+                const ordersList = Object.entries(data).map(([key, value]) => ({
+                    id: key,
+                    ...value
+                })).reverse();
+
+                orderCount.innerText = `(${ordersList.length})`;
+                ordersFeed.innerHTML = '';
+
+                ordersList.forEach(order => {
+                    const dateStr = order.timestamp ? new Date(order.timestamp).toLocaleString() : 'Just now';
+                    
+                    let itemsHtml = '';
+                    if (order.itemsClaimed && Array.isArray(order.itemsClaimed)) {
+                        itemsHtml = order.itemsClaimed.map(i => `<li><strong>${i.name}</strong> x ${i.quantity}</li>`).join('');
+                    }
+
+                    const orderCard = document.createElement('div');
+                    orderCard.className = 'order-item';
+                    orderCard.innerHTML = `
+                        <div class="order-header">
+                            <span>👤 ${order.fullName || 'Anonymous'}</span>
+                            <span style="font-size: 0.8rem; color: #777;">${dateStr}</span>
+                        </div>
+                        <div class="order-details">
+                            📧 <strong>Email:</strong> ${order.email || 'N/A'}<br>
+                            🏫 <strong>Class/Room:</strong> ${order.shippingAddress || 'N/A'}
+                        </div>
+                        <div class="order-items-list">
+                            <ul style="padding-left: 1.2rem;">
+                                ${itemsHtml}
+                            </ul>
+                        </div>
+                    `;
+                    ordersFeed.appendChild(orderCard);
+                });
+
+                // Trigger notification sound/popup if a new order comes in after page load
+                if (!isFirstLoad) {
+                    const latestOrder = ordersList[0];
+                    triggerOrderAlert(latestOrder);
+                }
+
+                isFirstLoad = false;
+            });
+        }
+
+        // Listen to Product Stock and allow direct edits
+        function listenToStock() {
+            database.ref('products').on('value', (snapshot) => {
+                const data = snapshot.val();
+                const stockControl = document.getElementById('stockControl');
+
+                if (!data) {
+                    stockControl.innerHTML = '<p style="text-align: center; color: #888;">No products found.</p>';
+                    return;
+                }
+
+                let tableHtml = `
+                    <table class="stock-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Stock</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                Object.entries(data).forEach(([key, product]) => {
+                    tableHtml += `
+                        <tr>
+                            <td><strong>${product.name}</strong></td>
+                            <td>
+                                <input type="number" id="stock_${key}" value="${product.stock}" class="stock-input" min="0">
+                            </td>
+                            <td>
+                                <button class="btn btn-small" onclick="updateStock('${key}')">Save</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tableHtml += '</tbody></table>';
+                stockControl.innerHTML = tableHtml;
+            });
+        }
+
+        // Update Stock in Firebase
+        function updateStock(key) {
+            const input = document.getElementById(`stock_${key}`);
+            const newStock = parseInt(input.value, 10);
+
+            if (isNaN(newStock) || newStock < 0) {
+                alert("Please enter a valid stock number.");
+                return;
+            }
+
+            database.ref(`products/${key}/stock`).set(newStock)
+                .then(() => alert("Stock updated successfully!"))
+                .catch(err => alert("Error updating stock: " + err.message));
+        }
+
+        // Initialize Admin Dashboard
+        listenToOrders();
+        listenToStock();
+    </script>
+</body>
+</html>
