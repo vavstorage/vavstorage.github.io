@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>vav Shop - Seller Admin</title>
+    <title>loading..</title>
 
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -72,6 +72,21 @@
             color: white;
         }
 
+        .btn-danger {
+            background-color: #e63946;
+            color: white;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .btn-danger:hover {
+            background-color: #c1121f;
+        }
+
         .grid-layout {
             display: grid;
             grid-template-columns: 2fr 1fr;
@@ -102,7 +117,6 @@
             align-items: center;
         }
 
-        /* Order Cards */
         .order-item {
             border: 1px solid #e0e0e0;
             border-left: 5px solid #2ec4b6;
@@ -115,6 +129,7 @@
         .order-header {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             font-weight: bold;
             margin-bottom: 0.5rem;
         }
@@ -123,6 +138,24 @@
             font-size: 0.9rem;
             color: #555;
             margin-bottom: 0.5rem;
+        }
+
+        .order-total-bar {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #1a1a2e;
+            margin: 0.5rem 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #eef9f8;
+            padding: 0.5rem 0.8rem;
+            border-radius: 4px;
+        }
+
+        .order-total-price {
+            color: #2ec4b6;
+            font-size: 1.1rem;
         }
 
         .order-items-list {
@@ -134,7 +167,14 @@
             font-size: 0.9rem;
         }
 
-        /* Stock Management Table */
+        .order-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0.8rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #eee;
+        }
+
         .stock-table {
             width: 100%;
             border-collapse: collapse;
@@ -206,7 +246,6 @@
     </main>
 
     <script>
-        // Firebase Configuration (Matching your Shop details)
         const firebaseConfig = {
             apiKey: "AIzaSyDwDe910zdnwDi8Cns-AFkCMZbxXzddJuA",
             authDomain: "server-bc966.firebaseapp.com",
@@ -223,7 +262,6 @@
         let isFirstLoad = true;
         let audioCtx = null;
 
-        // Check Connection Status
         database.ref('.info/connected').on('value', (snap) => {
             const statusEl = document.getElementById('connectionStatus');
             if (snap.val() === true) {
@@ -237,7 +275,6 @@
             }
         });
 
-        // Web Audio Synthesizer (Generates alert sound without needing an external audio file)
         function playChime() {
             try {
                 if (!audioCtx) {
@@ -249,8 +286,8 @@
                 const gain = audioCtx.createGain();
 
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(587.33, now); // D5 note
-                osc.frequency.exponentialRampToValueAtTime(880, now + 0.15); // A5 note
+                osc.frequency.setValueAtTime(587.33, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
 
                 gain.gain.setValueAtTime(0.3, now);
                 gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
@@ -265,7 +302,6 @@
             }
         }
 
-        // Enable Desktop & Audio Notifications
         function enableNotifications() {
             if ("Notification" in window) {
                 Notification.requestPermission().then(permission => {
@@ -285,19 +321,25 @@
             }
         }
 
-        // Send Notification Alert
         function triggerOrderAlert(order) {
             playChime();
 
             if ("Notification" in window && Notification.permission === "granted") {
                 new Notification("🎉 New Order Received!", {
-                    body: `${order.fullName} (${order.shippingAddress}) ordered ${order.itemsClaimed ? order.itemsClaimed.length : 0} item(s)!`,
+                    body: `${order.fullName} (${order.shippingAddress}) ordered ${order.itemsClaimed ? order.itemsClaimed.length : 0} item(s) - ${order.priceTotal || '$0.00'}!`,
                     icon: "https://cdn-icons-png.flaticon.com/512/3144/3144456.png"
                 });
             }
         }
 
-        // Listen for Realtime Orders
+        function deleteOrder(orderId) {
+            if (confirm("Are you sure you want to delete this order? This action cannot be undone.")) {
+                database.ref(`orders/${orderId}`).remove()
+                    .then(() => alert("Order deleted successfully!"))
+                    .catch(err => alert("Error deleting order: " + err.message));
+            }
+        }
+
         function listenToOrders() {
             const ordersRef = database.ref('orders');
 
@@ -313,7 +355,6 @@
                     return;
                 }
 
-                // Convert object to array and reverse to show newest first
                 const ordersList = Object.entries(data).map(([key, value]) => ({
                     id: key,
                     ...value
@@ -324,10 +365,15 @@
 
                 ordersList.forEach(order => {
                     const dateStr = order.timestamp ? new Date(order.timestamp).toLocaleString() : 'Just now';
+                    const totalPrice = order.priceTotal || '$0.00';
                     
                     let itemsHtml = '';
                     if (order.itemsClaimed && Array.isArray(order.itemsClaimed)) {
-                        itemsHtml = order.itemsClaimed.map(i => `<li><strong>${i.name}</strong> x ${i.quantity}</li>`).join('');
+                        itemsHtml = order.itemsClaimed.map(i => {
+                            const storageStr = i.storage ? ` [💾 <strong>${i.storage}</strong>]` : '';
+                            const priceStr = i.unitPrice ? ` <span style="color:#2ec4b6;">(${i.unitPrice} each)</span>` : '';
+                            return `<li><strong>${i.name}</strong>${storageStr}${priceStr} x ${i.quantity}</li>`;
+                        }).join('');
                     }
 
                     const orderCard = document.createElement('div');
@@ -341,16 +387,22 @@
                             📧 <strong>Email:</strong> ${order.email || 'N/A'}<br>
                             🏫 <strong>Class/Room:</strong> ${order.shippingAddress || 'N/A'}
                         </div>
+                        <div class="order-total-bar">
+                            <span>Total Price:</span>
+                            <span class="order-total-price">${totalPrice}</span>
+                        </div>
                         <div class="order-items-list">
                             <ul style="padding-left: 1.2rem;">
                                 ${itemsHtml}
                             </ul>
                         </div>
+                        <div class="order-footer">
+                            <button class="btn-danger" onclick="deleteOrder('${order.id}')">🗑️ Delete Order</button>
+                        </div>
                     `;
                     ordersFeed.appendChild(orderCard);
                 });
 
-                // Trigger notification sound/popup if a new order comes in after page load
                 if (!isFirstLoad) {
                     const latestOrder = ordersList[0];
                     triggerOrderAlert(latestOrder);
@@ -360,7 +412,6 @@
             });
         }
 
-        // Listen to Product Stock and allow direct edits
         function listenToStock() {
             database.ref('products').on('value', (snapshot) => {
                 const data = snapshot.val();
@@ -402,7 +453,6 @@
             });
         }
 
-        // Update Stock in Firebase
         function updateStock(key) {
             const input = document.getElementById(`stock_${key}`);
             const newStock = parseInt(input.value, 10);
@@ -417,7 +467,6 @@
                 .catch(err => alert("Error updating stock: " + err.message));
         }
 
-        // Initialize Admin Dashboard
         listenToOrders();
         listenToStock();
     </script>
