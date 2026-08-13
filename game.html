@@ -166,6 +166,11 @@
       border: 1px solid #ff4d4d;
     }
 
+    #fuel-hud {
+      color: #ff9900;
+      border: 1px solid #ff9900;
+    }
+
     #coin-hud {
       color: #ffd700;
       border: 1px solid #ffd700;
@@ -456,8 +461,8 @@
       <button id="startBtn">CLICK TO PLAY</button>
 
       <div class="instructions-text">
-        <b>Controls:</b> WASD to Move | Space to Jump | Left Click to Attack | Right Click / F to Use Item (Potion)<br>
-        <b>Interact / Shop:</b> E | <b>Inventory (Inner Slots):</b> I / TAB | <b>Drop Item:</b> Q | <b>Pause / Close UI:</b> ESC
+        <b>Controls:</b> WASD to Move | Space to Jump | Left Click to Attack | Right Click / F to Use Item (Potion/Fuel)<br>
+        <b>Interact / Shop / Gas Station:</b> E | <b>Inventory (Inner Slots):</b> I / TAB | <b>Drop Item:</b> Q | <b>Pause / Close UI:</b> ESC
       </div>
     </div>
   </div>
@@ -466,6 +471,7 @@
   
   <div id="top-hud">
     <div id="health-hud" class="hud-box">❤️ Health: <span id="health-count">100</span> / 100</div>
+    <div id="fuel-hud" class="hud-box">⛽ Fuel: <span id="fuel-count">100</span>%</div>
     <div id="coin-hud" class="hud-box">🪙 Coins: <span id="coin-count">10</span></div>
     <div id="inv-hud-btn" class="hud-box">🎒 Inventory [I]</div>
   </div>
@@ -486,6 +492,11 @@
     <div class="shop-item">
       <div class="shop-item-info"><span>🏎️</span> <b>Sports Car (3x Speed)</b></div>
       <button class="buy-btn" data-item="car" data-price="25">25 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>⛽</span> <b>Fuel Tank (+50% Fuel)</b></div>
+      <button class="buy-btn" data-item="fuel_tank" data-price="10">10 🪙 Buy</button>
     </div>
 
     <div class="shop-item">
@@ -535,13 +546,16 @@
     scene.background = new THREE.Color(0x87ceeb); // Sky blue
     scene.fog = new THREE.Fog(0x87ceeb, 0, 100);
 
-    // --- PLAYER SCALE & HEALTH SETTINGS ---
+    // --- PLAYER SCALE, HEALTH & FUEL SETTINGS ---
     const playerHeight = 0.6;   // Base eye-level camera height
     const playerRadius = 0.25;  // Collision width
     const maxStepHeight = 0.2;  // Max step height
 
     let playerHealth = 100;
     const maxPlayerHealth = 100;
+
+    let playerFuel = 100;
+    const maxPlayerFuel = 100;
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 1000);
     camera.position.set(0, playerHeight + 2, 0); 
@@ -561,6 +575,7 @@
     const loadingStatus = document.getElementById('loading-status');
     const damageFlash = document.getElementById('damage-flash');
     const healthCountDisplay = document.getElementById('health-count');
+    const fuelCountDisplay = document.getElementById('fuel-count');
     const fileInput = document.getElementById('fileInput');
     const fileNameDisplay = document.getElementById('file-name');
 
@@ -634,9 +649,13 @@
       (err) => console.warn('Could not load enemy.glb', err)
     );
 
-    // --- HEALTH & DAMAGE LOGIC ---
+    // --- HEALTH, FUEL & DAMAGE LOGIC ---
     function updateHealthHUD() {
       healthCountDisplay.textContent = Math.max(0, Math.round(playerHealth));
+    }
+
+    function updateFuelHUD() {
+      fuelCountDisplay.textContent = Math.max(0, Math.round(playerFuel));
     }
 
     function triggerDamageFlash() {
@@ -669,6 +688,17 @@
       return true;
     }
 
+    function refuelPlayer(amount) {
+      if (playerFuel >= maxPlayerFuel) {
+        alert("Fuel tank is already full!");
+        return false;
+      }
+      playerFuel = Math.min(maxPlayerFuel, playerFuel + amount);
+      updateFuelHUD();
+      alert(`Refueled! Current Fuel: ${Math.round(playerFuel)}%`);
+      return true;
+    }
+
     function useSelectedItem() {
       const item = inventory[selectedSlot];
       if (!item) return;
@@ -679,6 +709,11 @@
           updateInventoryUI();
         } else {
           alert("Health is already full!");
+        }
+      } else if (item.name.includes('Fuel Tank')) {
+        if (refuelPlayer(50)) {
+          inventory[selectedSlot] = null;
+          updateInventoryUI();
         }
       }
     }
@@ -701,11 +736,11 @@
             if (camDir.dot(dirToEnemy) > 0.4) {
              let damage = 10;
              if (item) {
-             if (item.name.includes('Iron')) damage = 25;
-             else if (item.name.includes('Stone')) damage = 18;
-             else if (item.name.includes('Diamond')) damage = 35;
-             else if (item.name.includes('Car')) damage = 30; // 👈 ADD THIS LINE
-           }
+               if (item.name.includes('Iron')) damage = 25;
+               else if (item.name.includes('Stone')) damage = 18;
+               else if (item.name.includes('Diamond')) damage = 35;
+               else if (item.name.includes('Car')) damage = 30;
+             }
 
               enemy.health -= damage;
 
@@ -796,7 +831,7 @@
     // --- ENEMY & SPAWNER SYSTEM ---
     const enemies = [];
     const maxEnemiesOnIsland = 2;
-    const enemySpawnIntervalMs = 4000;
+    const enemySpawnIntervalMs = 10000;
     let spawnerMeshes = [];
 
     function clearEnemies() {
@@ -936,11 +971,17 @@
 
     const itemCatalog = {
       car: {
-      name: 'Sports Car',
-      icon: '🏎️',
-      geometry: new THREE.BoxGeometry(0.35, 0.2, 0.65),
-      material: new THREE.MeshStandardMaterial({ color: 0xef233c, metalness: 0.8, roughness: 0.2 })
-    },
+        name: 'Sports Car',
+        icon: '🏎️',
+        geometry: new THREE.BoxGeometry(0.35, 0.2, 0.65),
+        material: new THREE.MeshStandardMaterial({ color: 0xef233c, metalness: 0.8, roughness: 0.2 })
+      },
+      fuel_tank: {
+        name: 'Fuel Tank',
+        icon: '⛽',
+        geometry: new THREE.CylinderGeometry(0.12, 0.12, 0.35, 12),
+        material: new THREE.MeshStandardMaterial({ color: 0xdd2222, roughness: 0.3 })
+      },
       iron_sword: {
         name: 'Iron Sword',
         icon: '⚔️',
@@ -1092,9 +1133,31 @@
       }
     }
 
+    // --- GAS STATION DETECTION ---
+    function setupGasStationsFromGLTF(gltfScene) {
+      for (let i = interactableObjects.length - 1; i >= 0; i--) {
+        if (interactableObjects[i].userData && interactableObjects[i].userData.isGasStation) {
+          interactableObjects.splice(i, 1);
+        }
+      }
+
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('gas')) {
+          const displayName = 'Gas Station';
+          child.traverse((subChild) => {
+            subChild.userData.isGasStation = true;
+            subChild.userData.name = displayName;
+            if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
+          });
+          child.userData.isGasStation = true;
+          child.userData.name = displayName;
+          if (!interactableObjects.includes(child)) interactableObjects.push(child);
+        }
+      });
+    }
+
     // --- INVENTORY UI & SWAP SYSTEM ---
     function findFirstEmptySlot() {
-      // Check hotbar first (0..4), then inner slots (5..19)
       for (let i = 0; i < TOTAL_SLOTS; i++) {
         if (inventory[i] === null) return i;
       }
@@ -1109,7 +1172,6 @@
       } else if (selectedSwapSourceIndex === slotIndex) {
         selectedSwapSourceIndex = null;
       } else {
-        // Swap items between slots
         const temp = inventory[selectedSwapSourceIndex];
         inventory[selectedSwapSourceIndex] = inventory[slotIndex];
         inventory[slotIndex] = temp;
@@ -1122,7 +1184,6 @@
       innerGridEl.innerHTML = '';
       hotbarGridEl.innerHTML = '';
 
-      // Render Inner Storage Slots (5..19)
       for (let i = HOTBAR_SLOTS; i < TOTAL_SLOTS; i++) {
         const item = inventory[i];
         const slotEl = document.createElement('div');
@@ -1136,7 +1197,6 @@
         innerGridEl.appendChild(slotEl);
       }
 
-      // Render Hotbar Slots (0..4) in Modal
       for (let i = 0; i < HOTBAR_SLOTS; i++) {
         const item = inventory[i];
         const slotEl = document.createElement('div');
@@ -1152,7 +1212,6 @@
     }
 
     function updateInventoryUI() {
-      // Update HUD Hotbar (0..4)
       const slots = document.querySelectorAll('#inventory-bar .slot');
       slots.forEach((slotEl, idx) => {
         slotEl.classList.toggle('active', idx === selectedSlot);
@@ -1301,6 +1360,7 @@
     function handleInteraction() {
       if (hoveredObject && controls.isLocked) {
         if (hoveredObject.userData.isShop) openShop();
+        else if (hoveredObject.userData.isGasStation) refuelPlayer(100);
         else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
       }
     }
@@ -1310,6 +1370,7 @@
       const saveData = {
         coins: playerCoins,
         health: playerHealth,
+        fuel: playerFuel,
         map: currentLoadedFileName,
         inventory: inventory.map(item => item ? item.name : null),
         position: {
@@ -1334,8 +1395,10 @@
         const saveData = JSON.parse(rawData);
         playerCoins = saveData.coins || 10;
         playerHealth = saveData.health || 100;
+        playerFuel = (saveData.fuel !== undefined) ? saveData.fuel : 100;
         updateCoinHUD();
         updateHealthHUD();
+        updateFuelHUD();
 
         if (Array.isArray(saveData.inventory)) {
           saveData.inventory.forEach((itemName, idx) => {
@@ -1494,6 +1557,7 @@
 
           detectSpawnersInModel(loadedModel);
           setupShopFromGLTF(loadedModel);
+          setupGasStationsFromGLTF(loadedModel);
           detectPortalsInModel(loadedModel);
 
           const box = new THREE.Box3().setFromObject(loadedModel);
@@ -1563,11 +1627,25 @@
 
         const currentItem = inventory[selectedSlot];
         const isDrivingCar = currentItem && currentItem.name.includes('Car');
-        const currentMoveSpeed = isDrivingCar ? moveSpeed * 3.0 : moveSpeed;
+        const isMoving = (moveForward || moveBackward || moveLeft || moveRight);
+
+        let currentMoveSpeed = moveSpeed;
+
+        if (isDrivingCar) {
+          if (playerFuel > 0) {
+            currentMoveSpeed = moveSpeed * 3.0;
+            if (isMoving) {
+              playerFuel = Math.max(0, playerFuel - 6.0 * delta); // Burn fuel while driving
+              updateFuelHUD();
+            }
+          } else {
+            currentMoveSpeed = moveSpeed; // Out of fuel! Regular speed
+          }
+        }
         
-       const accel = isGrounded ? currentMoveSpeed : currentMoveSpeed * 0.3;
-       if (moveForward || moveBackward) velocity.z -= direction.z * accel * delta * 10;
-       if (moveLeft || moveRight) velocity.x -= direction.x * accel * delta * 10;
+        const accel = isGrounded ? currentMoveSpeed : currentMoveSpeed * 0.3;
+        if (moveForward || moveBackward) velocity.z -= direction.z * accel * delta * 10;
+        if (moveLeft || moveRight) velocity.x -= direction.x * accel * delta * 10;
 
         const targets = loadedModel ? [loadedModel] : [];
         const oldPos = controls.getObject().position.clone();
@@ -1622,9 +1700,9 @@
         // Void Fall Respawn
         if (controls.getObject().position.y < -30) respawnPlayer();
 
-        const isMoving = (moveForward || moveBackward || moveLeft || moveRight) && isGrounded;
+        const isMovingGrounded = isMoving && isGrounded;
 
-        if (isMoving) {
+        if (isMovingGrounded) {
           walkAnimTimer += delta * 14;
         }
 
@@ -1645,7 +1723,6 @@
               if (enemy.spawnerMesh) {
                 const box = new THREE.Box3().setFromObject(enemy.spawnerMesh);
 
-                // Axis-independent collision check to stay strictly on top of spawnerMesh
                 const stepX = new THREE.Vector3(step.x, 0, 0);
                 const testPosX = enemy.mesh.position.clone().add(stepX);
                 const rayX = new THREE.Raycaster(
@@ -1705,13 +1782,13 @@
 
         if (hits.length > 0 && hits[0].distance < 3.5) {
           let hitObj = hits[0].object;
-          while (hitObj.parent && hitObj.parent !== scene && !hitObj.userData.isItem && !hitObj.userData.isShop) {
+          while (hitObj.parent && hitObj.parent !== scene && !hitObj.userData.isItem && !hitObj.userData.isShop && !hitObj.userData.isGasStation) {
             hitObj = hitObj.parent;
           }
 
-          if (hitObj.userData.isShop || hitObj.userData.isItem) {
+          if (hitObj.userData.isShop || hitObj.userData.isItem || hitObj.userData.isGasStation) {
             hoveredObject = hitObj;
-            promptItemName.textContent = hitObj.userData.name || 'Item Shop';
+            promptItemName.textContent = hitObj.userData.name || 'Interactive Object';
             interactionPrompt.style.display = 'block';
           } else {
             hoveredObject = null;
@@ -1733,8 +1810,8 @@
         // Viewmodel Swing & Bobbing
         const idleBobX = Math.sin(time * 0.002) * 0.005;
         const idleBobY = Math.cos(time * 0.003) * 0.008;
-        const walkSwayX = isMoving ? Math.sin(time * 0.012) * 0.025 : 0;
-        const walkSwayY = isMoving ? Math.abs(Math.cos(time * 0.012)) * 0.02 : 0;
+        const walkSwayX = isMovingGrounded ? Math.sin(time * 0.012) * 0.025 : 0;
+        const walkSwayY = isMovingGrounded ? Math.abs(Math.cos(time * 0.012)) * 0.02 : 0;
 
         let swingRotX = 0, swingRotY = 0, swingRotZ = 0, swingOffsetZ = 0;
 
@@ -1777,6 +1854,7 @@
 
     updateCoinHUD();
     updateHealthHUD();
+    updateFuelHUD();
     updateInventoryUI();
     animate();
   </script>
