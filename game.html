@@ -2,14 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Viewer Game - Direct model.glb Loader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>3D First-Person Game - GitHub GLB Loader</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
       background-color: #000;
       font-family: Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    /* Red Flash Overlay for Damage */
+    #damage-flash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 0, 0, 0.35);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease-out;
+      z-index: 15;
     }
 
     /* Fullscreen menu overlay */
@@ -24,7 +41,7 @@
       align-items: center;
       color: #ffffff;
       text-align: center;
-      z-index: 10;
+      z-index: 20;
     }
 
     .card {
@@ -35,8 +52,10 @@
       box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      gap: 12px;
       align-items: center;
+      max-width: 90vw;
+      box-sizing: border-box;
     }
 
     h1 {
@@ -48,6 +67,35 @@
       font-size: 14px;
       color: #ffd700;
       font-weight: bold;
+    }
+
+    /* Buttons Container */
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .file-upload-btn, .action-btn {
+      background-color: #333;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 6px;
+      border: 1px solid #555;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .file-upload-btn:hover, .action-btn:hover {
+      background-color: #444;
+      transform: scale(1.02);
+    }
+
+    input[type="file"] {
+      display: none;
     }
 
     /* Start Game Button */
@@ -69,10 +117,15 @@
     }
 
     .instructions-text {
-      font-size: 14px;
+      font-size: 13px;
       color: #aaa;
-      margin-top: 10px;
+      margin-top: 5px;
       line-height: 1.5;
+    }
+
+    #file-name {
+      font-size: 13px;
+      color: #28a745;
     }
 
     /* Crosshair */
@@ -88,21 +141,35 @@
       user-select: none;
     }
 
-    /* Coin Currency HUD */
-    #coin-hud {
+    /* Top HUD Container */
+    #top-hud {
       position: absolute;
       top: 20px;
       left: 20px;
-      background: rgba(0, 0, 0, 0.75);
-      color: #ffd700;
-      font-weight: bold;
-      font-size: 18px;
-      padding: 10px 18px;
-      border-radius: 8px;
-      border: 1px solid #ffd700;
+      display: flex;
+      gap: 12px;
       z-index: 5;
       user-select: none;
+    }
+
+    .hud-box {
+      background: rgba(0, 0, 0, 0.75);
+      font-weight: bold;
+      font-size: 16px;
+      padding: 10px 16px;
+      border-radius: 8px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+    }
+
+    #health-hud {
+      color: #ff4d4d;
+      border: 1px solid #ff4d4d;
+    }
+
+    #coin-hud {
+      color: #ffd700;
+      border: 1px solid #ffd700;
     }
 
     /* Interaction Prompt */
@@ -131,8 +198,7 @@
       transform: translateX(-50%);
       display: flex;
       gap: 10px;
-      z-index: 5;
-      pointer-events: none;
+      z-index: 10;
     }
 
     .slot {
@@ -149,6 +215,8 @@
       color: #fff;
       transition: all 0.15s ease;
       backdrop-filter: blur(4px);
+      cursor: pointer;
+      touch-action: manipulation;
     }
 
     .slot.active {
@@ -197,7 +265,7 @@
       border-radius: 12px;
       padding: 25px 30px;
       color: #fff;
-      z-index: 15;
+      z-index: 25;
       display: none;
       flex-direction: column;
       gap: 15px;
@@ -264,6 +332,123 @@
     .close-shop-btn:hover {
       background: #bd2130;
     }
+
+    /* TOUCH CONTROLS OVERLAY */
+    #touch-controls {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 12;
+    }
+
+    body.touch-enabled #touch-controls {
+      display: block;
+    }
+
+    /* Virtual Joystick */
+    #joystick-zone {
+      position: absolute;
+      bottom: 25px;
+      left: 20px;
+      width: 120px;
+      height: 120px;
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    #joystick-base {
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-radius: 50%;
+      position: relative;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+
+    #joystick-stick {
+      width: 50px;
+      height: 50px;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 50%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      pointer-events: none;
+    }
+
+    /* Touch Action Buttons Grid */
+    #touch-actions {
+      position: absolute;
+      bottom: 25px;
+      right: 20px;
+      display: grid;
+      grid-template-columns: repeat(2, 54px);
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .touch-btn {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.65);
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      color: white;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      touch-action: manipulation;
+    }
+
+    .touch-btn:active {
+      background: rgba(40, 167, 69, 0.85);
+      transform: scale(0.92);
+    }
+
+    @media (max-width: 768px) {
+      #inventory-bar {
+        bottom: 10px;
+        gap: 4px;
+      }
+      .slot {
+        width: 46px;
+        height: 46px;
+      }
+      .slot-name {
+        display: none;
+      }
+      #joystick-zone {
+        bottom: 65px;
+        left: 15px;
+        width: 100px;
+        height: 100px;
+      }
+      #touch-actions {
+        bottom: 65px;
+        right: 15px;
+        grid-template-columns: repeat(2, 46px);
+        gap: 8px;
+      }
+      .touch-btn {
+        width: 46px;
+        height: 46px;
+        font-size: 18px;
+      }
+      #interaction-prompt {
+        bottom: 160px;
+      }
+    }
   </style>
 
   <script type="importmap">
@@ -277,25 +462,41 @@
 </head>
 <body>
 
+  <div id="damage-flash"></div>
+
   <div id="blocker">
     <div class="card">
       <h1>3D Walkthrough</h1>
-      <div id="loading-status">⏳ Loading model.glb...</div>
+      
+      <div id="loading-status">⏳ Loading assets from vavstorage.github.io...</div>
+
+      <div class="btn-row">
+        <label class="file-upload-btn">
+          📁 Override Map (.GLB)
+          <input type="file" id="fileInput" accept=".glb,.gltf" />
+        </label>
+        <button id="saveBtn" class="action-btn" style="background-color: #007bff;">💾 Save Game</button>
+        <button id="loadBtn" class="action-btn" style="background-color: #17a2b8;">📂 Load Game</button>
+      </div>
+
+      <span id="file-name">Default: vavstorage.github.io/model.glb</span>
 
       <button id="startBtn">CLICK TO PLAY</button>
 
       <div class="instructions-text">
-        <b>Movement:</b> W, A, S, D | <b>Jump:</b> SPACEBAR<br>
-        <b>Swing Weapon / Attack:</b> LEFT-CLICK<br>
-        <b>Interact / Open Shop:</b> E | <b>Drop Item:</b> Q<br>
-        <b>Select Slot:</b> 1 - 5 or Mouse Scroll | <b>Pause:</b> ESC
+        <b>Desktop:</b> WASD to Move | Space to Jump | Left Click to Attack | Right Click / F to Use Item (Potion)<br>
+        <b>Touch:</b> Left Joystick | Swipe Right Screen to Look | Touch Buttons for Jump/Attack/Interact/Potion<br>
+        <b>Interact / Shop:</b> E | <b>Drop Item:</b> Q | <b>Pause / Close Shop:</b> ESC
       </div>
     </div>
   </div>
 
   <div id="crosshair">+</div>
   
-  <div id="coin-hud">🪙 Coins: <span id="coin-count">10</span></div>
+  <div id="top-hud">
+    <div id="health-hud" class="hud-box">❤️ Health: <span id="health-count">100</span> / 100</div>
+    <div id="coin-hud" class="hud-box">🪙 Coins: <span id="coin-count">10</span></div>
+  </div>
 
   <div id="interaction-prompt">Press <b>E</b> to interact with <span id="prompt-item-name" style="color: #28a745; font-weight: bold;">Item</span></div>
 
@@ -305,6 +506,21 @@
     <div class="slot" data-slot="2"><span class="slot-num">3</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
     <div class="slot" data-slot="3"><span class="slot-num">4</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
     <div class="slot" data-slot="4"><span class="slot-num">5</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+  </div>
+
+  <div id="touch-controls">
+    <div id="joystick-zone">
+      <div id="joystick-base">
+        <div id="joystick-stick"></div>
+      </div>
+    </div>
+
+    <div id="touch-actions">
+      <button id="btn-touch-attack" class="touch-btn" title="Attack">⚔️</button>
+      <button id="btn-touch-jump" class="touch-btn" title="Jump">⬆️</button>
+      <button id="btn-touch-interact" class="touch-btn" title="Interact">✋</button>
+      <button id="btn-touch-use" class="touch-btn" title="Use Item">🧪</button>
+    </div>
   </div>
 
   <div id="shop-modal">
@@ -338,35 +554,75 @@
     import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+    // Touch Screen Detection
+    let isTouchDevice = false;
+    let touchPlaying = false;
+
+    function enableTouchMode() {
+      if (!isTouchDevice) {
+        isTouchDevice = true;
+        document.body.classList.add('touch-enabled');
+      }
+    }
+
+    function disableTouchMode() {
+      if (isTouchDevice) {
+        isTouchDevice = false;
+        touchPlaying = false;
+        document.body.classList.remove('touch-enabled');
+      }
+    }
+
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      enableTouchMode();
+    }
+    window.addEventListener('touchstart', enableTouchMode, { passive: true });
+
     // 1. Scene, Camera & Renderer
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb); // Sky blue
     scene.fog = new THREE.Fog(0x87ceeb, 0, 100);
 
-    // --- PLAYER SCALE SETTINGS ---
-    const playerHeight = 0.6;   // Eye-level camera height
+    // --- PLAYER SCALE & HEALTH SETTINGS ---
+    const playerHeight = 0.6;   // Base eye-level camera height
     const playerRadius = 0.25;  // Collision width
-    const maxStepHeight = 0.2;  // Max height player can step onto automatically
+    const maxStepHeight = 0.2;  // Max step height
+
+    let playerHealth = 100;
+    const maxPlayerHealth = 100;
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 1000);
-    camera.position.set(0, playerHeight + 2, 0); // Default spawn location
+    camera.position.set(0, playerHeight + 2, 0); 
+    camera.rotation.order = 'YXZ'; 
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
-    // 2. Controls & Blocker UI
-    const controls = new PointerLockControls(camera, document.body);
+    // 2. Controls & Blocker UI Elements
     const blocker = document.getElementById('blocker');
     const startBtn = document.getElementById('startBtn');
     const shopModal = document.getElementById('shop-modal');
     const loadingStatus = document.getElementById('loading-status');
+    const damageFlash = document.getElementById('damage-flash');
+    const healthCountDisplay = document.getElementById('health-count');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('file-name');
+
+    const controls = new PointerLockControls(camera, document.body);
 
     let isShopOpen = false;
 
     startBtn.addEventListener('click', () => {
-      controls.lock();
+      if (isTouchDevice) {
+        touchPlaying = true;
+        blocker.style.display = 'none';
+        shopModal.style.display = 'none';
+        isShopOpen = false;
+      } else {
+        controls.lock();
+      }
     });
 
     controls.addEventListener('lock', () => {
@@ -376,17 +632,16 @@
     });
 
     controls.addEventListener('unlock', () => {
-      if (!isShopOpen) {
+      if (!isShopOpen && !isTouchDevice) {
         blocker.style.display = 'flex';
       }
     });
 
     scene.add(controls.getObject());
 
-    // --- VIEWMODEL & WEAPON ANIMATION SYSTEM ---
+    // --- VIEWMODEL SYSTEM ---
     const viewmodelGroup = new THREE.Group();
     camera.add(viewmodelGroup);
-    scene.add(camera);
 
     const viewmodelBasePos = new THREE.Vector3(0.28, -0.22, -0.45);
     const viewmodelBaseRot = new THREE.Euler(-0.15, 0.25, -0.1);
@@ -398,6 +653,143 @@
     let isSwinging = false;
     let swingProgress = 0;
     const swingSpeed = 10.0;
+
+    // --- ENEMY GLB TEMPLATE ---
+    const baseURL = 'https://vavstorage.github.io/';
+    const loader = new GLTFLoader();
+    let enemyModelTemplate = null;
+
+    loader.load(
+      baseURL + 'enemy.glb',
+      (gltf) => {
+        // Wrap model in an inner container group so lookAt() on parent doesn't override model rotation
+        const container = new THREE.Group();
+        const model = gltf.scene;
+
+        // FIX UPSIDE-DOWN BUG: Flip inner model 180 deg on X-axis
+        model.rotation.x = Math.PI; 
+
+        // Scale model to standard 1.5 height
+        let box = new THREE.Box3().setFromObject(model);
+        let size = box.getSize(new THREE.Vector3());
+        if (size.y > 0) {
+          const scale = 1.5 / size.y;
+          model.scale.set(scale, scale, scale);
+        }
+
+        // Adjust position so the bottom of the enemy's feet rests at container y = 0
+        box.setFromObject(model);
+        model.position.y = -box.min.y;
+
+        container.add(model);
+        enemyModelTemplate = container;
+      },
+      undefined,
+      (err) => console.warn('Could not load enemy.glb', err)
+    );
+
+    // --- HEALTH & DAMAGE LOGIC ---
+    function updateHealthHUD() {
+      healthCountDisplay.textContent = Math.max(0, Math.round(playerHealth));
+    }
+
+    function triggerDamageFlash() {
+      damageFlash.style.opacity = '1';
+      setTimeout(() => { damageFlash.style.opacity = '0'; }, 180);
+    }
+
+    function takeDamage(amount) {
+      playerHealth -= amount;
+      updateHealthHUD();
+      triggerDamageFlash();
+
+      if (playerHealth <= 0) {
+        alert("You died! Respawning...");
+        respawnPlayer();
+      }
+    }
+
+    function respawnPlayer() {
+      playerHealth = maxPlayerHealth;
+      updateHealthHUD();
+      controls.getObject().position.set(0, playerHeight + 3, 0);
+      velocity.set(0, 0, 0);
+    }
+
+    function healPlayer(amount) {
+      if (playerHealth >= maxPlayerHealth) return false;
+      playerHealth = Math.min(maxPlayerHealth, playerHealth + amount);
+      updateHealthHUD();
+      return true;
+    }
+
+    function useSelectedItem() {
+      const item = inventory[selectedSlot];
+      if (!item) return;
+
+      if (item.name.includes('Potion')) {
+        if (healPlayer(35)) {
+          inventory[selectedSlot] = null;
+          updateInventoryUI();
+        } else {
+          alert("Health is already full!");
+        }
+      }
+    }
+
+    function triggerAttack() {
+      const item = inventory[selectedSlot];
+      if (!isSwinging) {
+        isSwinging = true;
+        swingProgress = 0;
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const enemy = enemies[i];
+          const dist = camera.position.distanceTo(enemy.mesh.position);
+
+          if (dist < 3.5) {
+            const dirToEnemy = enemy.mesh.position.clone().sub(camera.position).normalize();
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+
+            if (camDir.dot(dirToEnemy) > 0.4) {
+              let damage = 10;
+              if (item) {
+                if (item.name.includes('Iron')) damage = 25;
+                else if (item.name.includes('Stone')) damage = 18;
+                else if (item.name.includes('Diamond')) damage = 35;
+              }
+
+              enemy.health -= damage;
+
+              // White flash effect on damage
+              enemy.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    if (mat && mat.color) {
+                      const orig = mat.color.getHex();
+                      mat.color.setHex(0xffffff);
+                      setTimeout(() => { if (mat && mat.color) mat.color.setHex(orig); }, 120);
+                    }
+                  });
+                }
+              });
+
+              // Knockback
+              const knockback = dirToEnemy.clone().multiplyScalar(1.2);
+              enemy.mesh.position.add(knockback);
+
+              if (enemy.health <= 0) {
+                spawnCoinAt(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.3, 0)));
+                scene.remove(enemy.mesh);
+                enemies.splice(i, 1);
+              }
+            }
+          }
+        }
+      }
+    }
 
     function updateHeldWeaponModel() {
       while (viewmodelGroup.children.length > 0) {
@@ -421,16 +813,14 @@
     }
 
     window.addEventListener('mousedown', (e) => {
-      if (e.button === 0 && controls.isLocked && !isShopOpen && !isSwinging) {
-        const item = inventory[selectedSlot];
-        if (item) {
-          isSwinging = true;
-          swingProgress = 0;
-        }
+      if ((controls.isLocked || touchPlaying) && !isShopOpen) {
+        if (e.button === 0) triggerAttack();
+        if (e.button === 2) useSelectedItem();
       }
     });
+    window.addEventListener('contextmenu', e => e.preventDefault());
 
-    // 3. Physics & Gravity Configuration
+    // 3. Physics & Movement Setup
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     let canJump = false;
     let isGrounded = false;
@@ -450,7 +840,200 @@
     const raycasterHorizontal = new THREE.Raycaster();
     const raycasterInteract = new THREE.Raycaster();
 
-    // --- INVENTORY, ECONOMY & SHOP SYSTEM DATA ---
+    function performJump() {
+      if (canJump) {
+        velocity.y = jumpStrength;
+        canJump = false;
+        isGrounded = false;
+      }
+    }
+
+    // --- TOUCH CONTROLS ---
+    let lookTouchId = null;
+    let lastLookX = 0, lastLookY = 0;
+
+    const joystickZone = document.getElementById('joystick-zone');
+    const joystickStick = document.getElementById('joystick-stick');
+    let joystickTouchId = null;
+    let joystickCenter = { x: 0, y: 0 };
+    const joystickRadius = 40;
+
+    window.addEventListener('touchstart', (e) => {
+      if (!touchPlaying || isShopOpen) return;
+
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.clientX > window.innerWidth / 2 && lookTouchId === null) {
+          if (!t.target.closest('#touch-actions') && !t.target.closest('#inventory-bar') && !t.target.closest('#shop-modal')) {
+            lookTouchId = t.identifier;
+            lastLookX = t.clientX;
+            lastLookY = t.clientY;
+          }
+        }
+      }
+    });
+
+    window.addEventListener('touchmove', (e) => {
+      if (!touchPlaying || isShopOpen) return;
+
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === lookTouchId) {
+          const deltaX = t.clientX - lastLookX;
+          const deltaY = t.clientY - lastLookY;
+
+          const sensitivity = 0.0035;
+          camera.rotation.y -= deltaX * sensitivity;
+          camera.rotation.x -= deltaY * sensitivity;
+
+          const maxPitch = Math.PI / 2 - 0.05;
+          camera.rotation.x = Math.max(-maxPitch, Math.min(maxPitch, camera.rotation.x));
+          camera.updateMatrixWorld();
+
+          lastLookX = t.clientX;
+          lastLookY = t.clientY;
+        }
+      }
+    }, { passive: false });
+
+    function resetLookTouch(e) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === lookTouchId) {
+          lookTouchId = null;
+        }
+      }
+    }
+
+    window.addEventListener('touchend', resetLookTouch);
+    window.addEventListener('touchcancel', resetLookTouch);
+
+    joystickZone.addEventListener('touchstart', (e) => {
+      if (joystickTouchId !== null || !touchPlaying) return;
+      const t = e.changedTouches[0];
+      joystickTouchId = t.identifier;
+
+      const rect = joystickZone.getBoundingClientRect();
+      joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      updateJoystick(t);
+    });
+
+    joystickZone.addEventListener('touchmove', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === joystickTouchId) {
+          updateJoystick(e.changedTouches[i]);
+          e.preventDefault();
+        }
+      }
+    }, { passive: false });
+
+    function resetJoystick() {
+      joystickTouchId = null;
+      joystickStick.style.transform = `translate(-50%, -50%)`;
+      moveForward = moveBackward = moveLeft = moveRight = false;
+    }
+
+    joystickZone.addEventListener('touchend', resetJoystick);
+    joystickZone.addEventListener('touchcancel', resetJoystick);
+
+    function updateJoystick(touch) {
+      let dx = touch.clientX - joystickCenter.x;
+      let dy = touch.clientY - joystickCenter.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > joystickRadius) {
+        dx = (dx / dist) * joystickRadius;
+        dy = (dy / dist) * joystickRadius;
+      }
+
+      joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+      const normX = dx / joystickRadius;
+      const normY = dy / joystickRadius;
+      const threshold = 0.25;
+
+      moveForward = normY < -threshold;
+      moveBackward = normY > threshold;
+      moveLeft = normX < -threshold;
+      moveRight = normX > threshold;
+    }
+
+    document.getElementById('btn-touch-jump').addEventListener('touchstart', (e) => { e.preventDefault(); performJump(); });
+    document.getElementById('btn-touch-attack').addEventListener('touchstart', (e) => { e.preventDefault(); triggerAttack(); });
+    document.getElementById('btn-touch-interact').addEventListener('touchstart', (e) => { e.preventDefault(); handleInteraction(); });
+    document.getElementById('btn-touch-use').addEventListener('touchstart', (e) => { e.preventDefault(); useSelectedItem(); });
+
+    // --- ENEMY SYSTEM ---
+    const enemies = [];
+    const maxEnemiesOnIsland = 6;
+    const enemySpawnIntervalMs = 4000;
+
+    function clearEnemies() {
+      for (let i = enemies.length - 1; i >= 0; i--) scene.remove(enemies[i].mesh);
+      enemies.length = 0;
+    }
+
+    function spawnEnemy() {
+      if (!currentLoadedFileName.toLowerCase().includes('island') || enemies.length >= maxEnemiesOnIsland) return;
+
+      const radius = 16;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 6.0 + Math.random() * radius;
+      const x = Math.cos(angle) * dist;
+      const z = Math.sin(angle) * dist;
+      let spawnY = 0.8;
+
+      if (loadedModel) {
+        const floorRay = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
+        const hits = floorRay.intersectObject(loadedModel, true);
+        if (hits.length > 0) spawnY = hits[0].point.y + 0.05;
+      }
+
+      let enemyGroup;
+      if (enemyModelTemplate) {
+        enemyGroup = enemyModelTemplate.clone(true);
+        // Deep clone materials so hit white flash is per-enemy
+        enemyGroup.traverse((child) => {
+          if (child.isMesh && child.material) {
+            child.material = Array.isArray(child.material)
+              ? child.material.map(m => m.clone())
+              : child.material.clone();
+          }
+        });
+        enemyGroup.position.set(x, spawnY, z);
+      } else {
+        enemyGroup = new THREE.Group();
+        const bodyMesh = new THREE.Mesh(
+          new THREE.CapsuleGeometry(0.35, 0.8, 4, 8),
+          new THREE.MeshStandardMaterial({ color: 0xd93838, roughness: 0.4 })
+        );
+        bodyMesh.position.y = 0.75;
+        enemyGroup.add(bodyMesh);
+
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), eyeMat);
+        leftEye.position.set(-0.15, 1.0, -0.3);
+        const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), eyeMat);
+        rightEye.position.set(0.15, 1.0, -0.3);
+        enemyGroup.add(leftEye, rightEye);
+
+        enemyGroup.position.set(x, spawnY, z);
+      }
+
+      scene.add(enemyGroup);
+      enemies.push({
+        mesh: enemyGroup,
+        health: 30,
+        maxHealth: 30,
+        speed: 2.5,
+        lastAttackTime: 0,
+        animOffset: Math.random() * 10,
+        baseY: spawnY
+      });
+    }
+
+    setInterval(spawnEnemy, enemySpawnIntervalMs);
+
+    // --- INVENTORY & ITEMS DATA ---
     let playerCoins = 10;
     const inventory = [null, null, null, null, null];
     let selectedSlot = 0;
@@ -513,13 +1096,9 @@
       return mesh;
     }
 
-    const maxCoinsInWorld = 3;
-    const coinSpawnIntervalMs = 15000;
-
     function spawnCoinAt(position) {
       const coinGeom = new THREE.CylinderGeometry(0.22, 0.22, 0.06, 16);
       const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
-      
       const coinMesh = spawnWorldItem('Coins (+10)', '🪙', coinGeom, coinMat, position, true);
       coinMesh.rotation.x = Math.PI / 2;
       return coinMesh;
@@ -527,33 +1106,29 @@
 
     function spawnRandomCoin() {
       const activeCoins = itemsInWorld.filter(item => item.userData && item.userData.isCoin).length;
-      if (activeCoins >= maxCoinsInWorld) return;
+      if (activeCoins >= 3) return;
 
       const radius = 12;
       const angle = Math.random() * Math.PI * 2;
       const dist = 2.0 + Math.random() * radius;
       const x = Math.cos(angle) * dist;
       const z = Math.sin(angle) * dist;
-
       let spawnY = 0.35;
 
       if (loadedModel) {
         const floorRay = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
         const hits = floorRay.intersectObject(loadedModel, true);
-        if (hits.length > 0) {
-          spawnY = hits[0].point.y + 0.35;
-        }
+        if (hits.length > 0) spawnY = hits[0].point.y + 0.35;
       }
 
       spawnCoinAt(new THREE.Vector3(x, spawnY, z));
     }
 
     spawnCoinAt(new THREE.Vector3(0, 0.35, -3.5));
-    setInterval(spawnRandomCoin, coinSpawnIntervalMs);
+    setInterval(spawnRandomCoin, 15000);
 
     function createFallbackShopStand(position) {
       const shopGroup = new THREE.Group();
-
       const counter = new THREE.Mesh(
         new THREE.BoxGeometry(2, 0.8, 1),
         new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 })
@@ -569,7 +1144,6 @@
       shopGroup.add(sign);
 
       shopGroup.position.copy(position);
-
       shopGroup.traverse((child) => {
         child.userData.isShop = true;
         child.userData.name = 'Item Shop';
@@ -580,16 +1154,35 @@
       return shopGroup;
     }
 
+    // --- HELPER FUNCTION TO REMOVE FALLBACK SHOP ---
+    function removeFallbackShop() {
+      if (fallbackShop) {
+        scene.remove(fallbackShop);
+        fallbackShop.traverse((child) => {
+          const idx = interactableObjects.indexOf(child);
+          if (idx > -1) interactableObjects.splice(idx, 1);
+        });
+        const idx = interactableObjects.indexOf(fallbackShop);
+        if (idx > -1) interactableObjects.splice(idx, 1);
+        fallbackShop = null;
+      }
+    }
+
     function setupShopFromGLTF(gltfScene) {
+      // 1. Remove previous GLB shop interactable references
       for (let i = interactableObjects.length - 1; i >= 0; i--) {
         if (interactableObjects[i].userData && interactableObjects[i].userData.isGLBShop) {
           interactableObjects.splice(i, 1);
         }
       }
 
+      // 2. Remove the fallback shop from the scene if it exists
+      removeFallbackShop();
+
       let foundShop = false;
       const shopKeywords = ['shop', 'store', 'vendor', 'merchant', 'counter', 'stand', 'market', 'kiosk', 'stall', 'npc', 'seller'];
 
+      // 3. Scan the new GLTF model for shop objects
       gltfScene.traverse((child) => {
         if (child.name) {
           const lowerName = child.name.toLowerCase();
@@ -598,42 +1191,27 @@
           if (isShopNode) {
             foundShop = true;
             const displayName = child.name.replace(/_/g, ' ') || 'Item Shop';
-
             child.traverse((subChild) => {
               subChild.userData.isShop = true;
               subChild.userData.isGLBShop = true;
               subChild.userData.name = displayName;
-              if (!interactableObjects.includes(subChild)) {
-                interactableObjects.push(subChild);
-              }
+              if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
             });
           }
         }
       });
 
-      if (foundShop) {
-        if (fallbackShop) {
-          scene.remove(fallbackShop);
-          const idx = interactableObjects.indexOf(fallbackShop);
-          if (idx > -1) interactableObjects.splice(idx, 1);
-          fallbackShop = null;
-        }
-      } else {
-        if (!fallbackShop) {
-          fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
-        }
+      // 4. Only spawn the fallback shop if NO shop object was found in the GLTF model
+      if (!foundShop) {
+        fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
       }
     }
+
 
     function updateInventoryUI() {
       const slots = document.querySelectorAll('#inventory-bar .slot');
       slots.forEach((slotEl, idx) => {
-        if (idx === selectedSlot) {
-          slotEl.classList.add('active');
-        } else {
-          slotEl.classList.remove('active');
-        }
-
+        slotEl.classList.toggle('active', idx === selectedSlot);
         const item = inventory[idx];
         const iconEl = slotEl.querySelector('.slot-icon');
         const nameEl = slotEl.querySelector('.slot-name');
@@ -650,34 +1228,34 @@
       updateHeldWeaponModel();
     }
 
+    document.querySelectorAll('#inventory-bar .slot').forEach((slotEl, idx) => {
+      const setSlot = (e) => {
+        e.preventDefault();
+        selectedSlot = idx;
+        updateInventoryUI();
+      };
+      slotEl.addEventListener('touchstart', setSlot);
+      slotEl.addEventListener('click', setSlot);
+    });
+
     function pickupItem(itemMesh) {
       if (itemMesh.userData.isCoin) {
         playerCoins += 10;
         updateCoinHUD();
-
-        scene.remove(itemMesh);
-        const idx = itemsInWorld.indexOf(itemMesh);
-        if (idx > -1) itemsInWorld.splice(idx, 1);
-        const intIdx = interactableObjects.indexOf(itemMesh);
-        if (intIdx > -1) interactableObjects.splice(intIdx, 1);
-
-        hoveredObject = null;
-        interactionPrompt.style.display = 'none';
-        return;
+      } else {
+        const emptyIndex = inventory.findIndex(slot => slot === null);
+        if (emptyIndex === -1) {
+          alert("Inventory Full!");
+          return;
+        }
+        inventory[emptyIndex] = {
+          name: itemMesh.userData.name,
+          icon: itemMesh.userData.icon,
+          geometry: itemMesh.geometry,
+          material: itemMesh.material
+        };
+        updateInventoryUI();
       }
-
-      const emptyIndex = inventory.findIndex(slot => slot === null);
-      if (emptyIndex === -1) {
-        alert("Inventory Full!");
-        return;
-      }
-
-      inventory[emptyIndex] = {
-        name: itemMesh.userData.name,
-        icon: itemMesh.userData.icon,
-        geometry: itemMesh.geometry,
-        material: itemMesh.material
-      };
 
       scene.remove(itemMesh);
       const idx = itemsInWorld.indexOf(itemMesh);
@@ -687,7 +1265,6 @@
 
       hoveredObject = null;
       interactionPrompt.style.display = 'none';
-      updateInventoryUI();
     }
 
     function addItemToInventory(itemData) {
@@ -696,14 +1273,12 @@
         alert("Inventory Full! Drop an item first.");
         return false;
       }
-
       inventory[emptyIndex] = {
         name: itemData.name,
         icon: itemData.icon,
         geometry: itemData.geometry,
         material: itemData.material
       };
-
       updateInventoryUI();
       return true;
     }
@@ -714,7 +1289,6 @@
 
       const dropPos = new THREE.Vector3();
       camera.getWorldPosition(dropPos);
-
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
 
@@ -722,21 +1296,23 @@
       dropPos.y = Math.max(dropPos.y, 0.3);
 
       spawnWorldItem(itemData.name, itemData.icon, itemData.geometry, itemData.material, dropPos);
-
       inventory[selectedSlot] = null;
       updateInventoryUI();
     }
 
     function openShop() {
       isShopOpen = true;
-      controls.unlock();
+      if (controls.isLocked) controls.unlock();
+      touchPlaying = false;
       shopModal.style.display = 'flex';
       interactionPrompt.style.display = 'none';
     }
 
     function closeShop() {
       shopModal.style.display = 'none';
-      controls.lock();
+      isShopOpen = false;
+      if (isTouchDevice) touchPlaying = true;
+      else controls.lock();
     }
 
     document.getElementById('closeShopBtn').addEventListener('click', closeShop);
@@ -759,7 +1335,83 @@
       });
     });
 
+    function handleInteraction() {
+      if (hoveredObject && (controls.isLocked || touchPlaying)) {
+        if (hoveredObject.userData.isShop) openShop();
+        else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
+      }
+    }
+
+    // --- SAVE / LOAD GAME SYSTEM ---
+    function saveGame() {
+      const saveData = {
+        coins: playerCoins,
+        health: playerHealth,
+        map: currentLoadedFileName,
+        inventory: inventory.map(item => item ? item.name : null),
+        position: {
+          x: controls.getObject().position.x,
+          y: controls.getObject().position.y,
+          z: controls.getObject().position.z
+        }
+      };
+
+      localStorage.setItem('3d_fps_game_save', JSON.stringify(saveData));
+      alert("Game Progress Saved!");
+    }
+
+    function loadGame() {
+      const rawData = localStorage.getItem('3d_fps_game_save');
+      if (!rawData) {
+        alert("No save file found!");
+        return;
+      }
+
+      try {
+        const saveData = JSON.parse(rawData);
+        playerCoins = saveData.coins || 10;
+        playerHealth = saveData.health || 100;
+        updateCoinHUD();
+        updateHealthHUD();
+
+        saveData.inventory.forEach((itemName, idx) => {
+          if (!itemName) {
+            inventory[idx] = null;
+          } else {
+            const catKey = Object.keys(itemCatalog).find(k => itemCatalog[k].name === itemName);
+            if (catKey) {
+              const tmpl = itemCatalog[catKey];
+              inventory[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material };
+            } else {
+              inventory[idx] = null;
+            }
+          }
+        });
+        updateInventoryUI();
+
+        if (saveData.position) {
+          controls.getObject().position.set(saveData.position.x, saveData.position.y, saveData.position.z);
+        }
+
+        alert("Game Save Loaded!");
+      } catch (e) {
+        console.error("Save parse error:", e);
+        alert("Failed to load save file.");
+      }
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', saveGame);
+    document.getElementById('loadBtn').addEventListener('click', loadGame);
+
+    // Keyboard Control
     const onKeyDown = (e) => {
+      disableTouchMode();
+
+      if (e.code === 'Escape' || (isShopOpen && e.code === 'KeyE')) {
+        if (isShopOpen) closeShop();
+        return;
+      }
+
       if (isShopOpen) return;
 
       switch (e.code) {
@@ -767,27 +1419,10 @@
         case 'KeyA': case 'ArrowLeft': moveLeft = true; break;
         case 'KeyS': case 'ArrowDown': moveBackward = true; break;
         case 'KeyD': case 'ArrowRight': moveRight = true; break;
-        case 'Space':
-          if (canJump) {
-            velocity.y = jumpStrength;
-            canJump = false;
-            isGrounded = false;
-          }
-          break;
-        case 'KeyE':
-          if (hoveredObject && controls.isLocked) {
-            if (hoveredObject.userData.isShop) {
-              openShop();
-            } else if (hoveredObject.userData.isItem) {
-              pickupItem(hoveredObject);
-            }
-          }
-          break;
-        case 'KeyQ':
-          if (controls.isLocked) {
-            dropSelectedItem();
-          }
-          break;
+        case 'Space': performJump(); break;
+        case 'KeyE': handleInteraction(); break;
+        case 'KeyF': useSelectedItem(); break;
+        case 'KeyQ': if (controls.isLocked || touchPlaying) dropSelectedItem(); break;
         case 'Digit1': selectedSlot = 0; updateInventoryUI(); break;
         case 'Digit2': selectedSlot = 1; updateInventoryUI(); break;
         case 'Digit3': selectedSlot = 2; updateInventoryUI(); break;
@@ -806,12 +1441,9 @@
     };
 
     window.addEventListener('wheel', (e) => {
-      if (!controls.isLocked || isShopOpen) return;
-      if (e.deltaY > 0) {
-        selectedSlot = (selectedSlot + 1) % 5;
-      } else if (e.deltaY < 0) {
-        selectedSlot = (selectedSlot - 1 + 5) % 5;
-      }
+      if ((!controls.isLocked && !touchPlaying) || isShopOpen) return;
+      if (e.deltaY > 0) selectedSlot = (selectedSlot + 1) % 5;
+      else if (e.deltaY < 0) selectedSlot = (selectedSlot - 1 + 5) % 5;
       updateInventoryUI();
     });
 
@@ -820,71 +1452,135 @@
 
     // 4. Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-
     const sun = new THREE.DirectionalLight(0xffffff, 1.5);
     sun.position.set(20, 40, 20);
     scene.add(sun);
 
-    // 5. DIRECT MODEL.GLB LOADER LOGIC
+    // 5. GLB MAP LOADING & PORTALS
     let loadedModel = null;
-    const loader = new GLTFLoader();
+    let currentLoadedFileName = 'model.glb';
+    let isTeleporting = false;
+    let portalObjects = [];
 
-    loader.load(
-      'model.glb',
-      (gltf) => {
-        loadedModel = gltf.scene;
-        scene.add(loadedModel);
+    function extractTargetFileName(objectName) {
+      let name = objectName.toLowerCase().trim().replace(/^portal[_-]?/i, '').replace(/[_-]?portal$/i, '').trim();
+      if (name && !name.endsWith('.glb') && !name.endsWith('.gltf')) name += '.glb';
+      if (!name || name === '.glb') return (currentLoadedFileName === 'model.glb') ? 'island.glb' : 'model.glb';
+      return name;
+    }
 
-        // Compute Bounding Box to auto-adjust spawn height
-        const box = new THREE.Box3().setFromObject(loadedModel);
-        const center = box.getCenter(new THREE.Vector3());
-
-        // Spawn player slightly above the detected floor/ground level
-        const spawnY = Math.max(box.min.y + playerHeight + 0.5, playerHeight + 0.5);
-        controls.getObject().position.set(center.x, spawnY, center.z);
-
-        setupShopFromGLTF(loadedModel);
-
-        loadingStatus.textContent = '✅ model.glb Loaded Successfully!';
-        loadingStatus.style.color = '#28a745';
-      },
-      (xhr) => {
-        if (xhr.lengthComputable) {
-          const percent = Math.round((xhr.loaded / xhr.total) * 100);
-          loadingStatus.textContent = `⏳ Loading model.glb (${percent}%)...`;
+    function detectPortalsInModel(gltfScene) {
+      portalObjects = [];
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('portal')) {
+          child.userData.targetFile = extractTargetFileName(child.name);
+          portalObjects.push(child);
         }
-      },
-      (error) => {
-        console.warn('Could not load model.glb directly:', error);
-        loadingStatus.textContent = '⚠️ Could not load model.glb (Ensure file exists & web server is running)';
-        loadingStatus.style.color = '#ff4d4d';
+      });
+    }
 
-        if (!fallbackShop) {
-          fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
+    function checkPortalCollisions() {
+      if (isTeleporting || portalObjects.length === 0) return;
+
+      const playerPos = controls.getObject().position;
+      const playerBox = new THREE.Box3(
+        new THREE.Vector3(playerPos.x - playerRadius, playerPos.y - playerHeight, playerPos.z - playerRadius),
+        new THREE.Vector3(playerPos.x + playerRadius, playerPos.y + playerHeight, playerPos.z + playerRadius)
+      );
+      const portalBox = new THREE.Box3();
+
+      for (const portal of portalObjects) {
+        portalBox.setFromObject(portal);
+        if (portalBox.intersectsBox(playerBox)) {
+          triggerPortalTeleport(portal.userData.targetFile || 'island.glb');
+          break;
         }
       }
-    );
+    }
+
+    function triggerPortalTeleport(targetFileName) {
+      isTeleporting = true;
+      loadModelFromURL(baseURL + targetFileName, targetFileName, (success) => {
+        if (!success) loadModelFromURL(targetFileName, targetFileName);
+        setTimeout(() => { isTeleporting = false; }, 2000);
+      });
+    }
+
+    function loadModelFromURL(url, displayName, onComplete) {
+      loadingStatus.textContent = `⏳ Loading ${displayName}...`;
+      loadingStatus.style.color = '#ffd700';
+
+      loader.load(
+        url,
+        (gltf) => {
+          if (loadedModel) scene.remove(loadedModel);
+          loadedModel = gltf.scene;
+          scene.add(loadedModel);
+
+          currentLoadedFileName = displayName;
+          if (!displayName.toLowerCase().includes('island')) clearEnemies();
+
+          setupShopFromGLTF(loadedModel);
+          detectPortalsInModel(loadedModel);
+
+          const box = new THREE.Box3().setFromObject(loadedModel);
+          const center = box.getCenter(new THREE.Vector3());
+          const spawnY = Math.max(box.min.y + playerHeight + 0.5, playerHeight + 0.5);
+
+          if (portalObjects.length > 0) {
+            const portalCenter = new THREE.Box3().setFromObject(portalObjects[0]).getCenter(new THREE.Vector3());
+            controls.getObject().position.set(portalCenter.x + 2, spawnY, portalCenter.z + 2);
+          } else {
+            controls.getObject().position.set(center.x, spawnY, center.z);
+          }
+
+          loadingStatus.textContent = `✅ Loaded: ${displayName}`;
+          loadingStatus.style.color = '#28a745';
+          if (fileNameDisplay) fileNameDisplay.textContent = `Current Map: ${displayName}`;
+          if (onComplete) onComplete(true);
+        },
+        (xhr) => {
+          if (xhr.lengthComputable) {
+            loadingStatus.textContent = `⏳ Loading ${displayName} (${Math.round((xhr.loaded / xhr.total) * 100)}%)...`;
+          }
+        },
+        (error) => {
+          console.error('Error loading model:', error);
+          loadingStatus.textContent = `⚠️ Failed to load: ${displayName}`;
+          loadingStatus.style.color = '#ff4d4d';
+          if (!fallbackShop) fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
+          if (onComplete) onComplete(false);
+        }
+      );
+    }
+
+    loadModelFromURL(baseURL + 'model.glb', 'model.glb');
+
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      fileNameDisplay.textContent = `Local File: ${file.name}`;
+      loadModelFromURL(URL.createObjectURL(file), file.name);
+    });
 
     // 6. Main Game Loop
     let prevTime = performance.now();
+    let walkAnimTimer = 0;
 
     function animate() {
       requestAnimationFrame(animate);
-
       const time = performance.now();
 
-      if (controls.isLocked && !isShopOpen) {
+      if ((controls.isLocked || touchPlaying) && !isShopOpen) {
         const delta = Math.min((time - prevTime) / 1000, 0.1);
 
         const damping = isGrounded ? groundDamping : airDamping;
         velocity.x -= velocity.x * damping * delta;
         velocity.z -= velocity.z * damping * delta;
 
-        if (velocity.y < 0) {
-          velocity.y -= gravity * fallMultiplier * delta;
-        } else {
-          velocity.y -= gravity * delta;
-        }
+        if (velocity.y < 0) velocity.y -= gravity * fallMultiplier * delta;
+        else velocity.y -= gravity * delta;
 
         velocity.y = Math.max(velocity.y, terminalVelocity);
 
@@ -897,7 +1593,6 @@
         if (moveLeft || moveRight) velocity.x -= direction.x * accel * delta * 10;
 
         const targets = loadedModel ? [loadedModel] : [];
-
         const oldPos = controls.getObject().position.clone();
 
         controls.moveRight(-velocity.x * delta);
@@ -909,7 +1604,6 @@
 
         if (moveDist > 0.0001 && targets.length > 0) {
           moveDir.normalize();
-
           const chestPos = oldPos.clone();
           chestPos.y = oldPos.y - playerHeight + maxStepHeight + 0.05;
 
@@ -923,53 +1617,98 @@
         }
 
         controls.getObject().position.y += velocity.y * delta;
-
         isGrounded = false;
 
         if (targets.length > 0) {
-          const currentPos = controls.getObject().position.clone();
-          raycasterDown.set(currentPos, new THREE.Vector3(0, -1, 0));
-
+          raycasterDown.set(controls.getObject().position, new THREE.Vector3(0, -1, 0));
           const surfaceHits = raycasterDown.intersectObjects(targets, true);
 
           if (surfaceHits.length > 0) {
             const hit = surfaceHits[0];
-            const distanceToGround = hit.distance;
-
-            if (distanceToGround <= playerHeight + maxStepHeight && velocity.y <= 0) {
-              const targetY = hit.point.y + playerHeight;
-              
-              controls.getObject().position.y = THREE.MathUtils.lerp(controls.getObject().position.y, targetY, 0.5);
-              
+            if (hit.distance <= playerHeight + maxStepHeight && velocity.y <= 0) {
+              controls.getObject().position.y = THREE.MathUtils.lerp(controls.getObject().position.y, hit.point.y + playerHeight, 0.5);
               velocity.y = 0;
               canJump = true;
               isGrounded = true;
             }
           }
+        } else {
+          // Fallback ground floor while GLB model is loading
+          if (controls.getObject().position.y <= playerHeight) {
+            controls.getObject().position.y = playerHeight;
+            velocity.y = 0;
+            canJump = true;
+            isGrounded = true;
+          }
         }
 
-        if (controls.getObject().position.y < -30) {
-          controls.getObject().position.set(0, playerHeight + 5, 0);
-          velocity.set(0, 0, 0);
+        // Void Fall Respawn
+        if (controls.getObject().position.y < -30) respawnPlayer();
+
+        const isMoving = (moveForward || moveBackward || moveLeft || moveRight) && isGrounded;
+
+        if (isMoving) {
+          walkAnimTimer += delta * 14;
         }
 
+        // ENEMY AI & WALKING ANIMATIONS
+        if (currentLoadedFileName.toLowerCase().includes('island')) {
+          const playerPos = controls.getObject().position;
+
+          enemies.forEach((enemy) => {
+            const dist = enemy.mesh.position.distanceTo(playerPos);
+
+            if (dist > 1.2 && dist < 22) {
+              // Enemy Movement
+              const dir = playerPos.clone().sub(enemy.mesh.position);
+              dir.y = 0;
+              dir.normalize();
+
+              enemy.mesh.position.add(dir.multiplyScalar(enemy.speed * delta));
+              enemy.mesh.lookAt(playerPos.x, enemy.mesh.position.y, playerPos.z);
+
+              // Waddling Animation
+              const enemyWalkCycle = (time * 0.01) + enemy.animOffset;
+              enemy.mesh.rotation.z = Math.sin(enemyWalkCycle) * 0.12; 
+
+              // Dynamic floor height snap (prevents floating in sky or sinking)
+              let groundY = enemy.baseY;
+              if (loadedModel) {
+                const floorRay = new THREE.Raycaster(
+                  new THREE.Vector3(enemy.mesh.position.x, enemy.mesh.position.y + 10, enemy.mesh.position.z),
+                  new THREE.Vector3(0, -1, 0)
+                );
+                const hits = floorRay.intersectObject(loadedModel, true);
+                if (hits.length > 0) groundY = hits[0].point.y;
+              }
+
+              const bounce = Math.abs(Math.sin(enemyWalkCycle * 2)) * 0.08;
+              enemy.mesh.position.y = groundY + bounce;
+            }
+
+            // Enemy Attack Player
+            if (dist < 1.6 && time - enemy.lastAttackTime > 1200) {
+              enemy.lastAttackTime = time;
+              takeDamage(15);
+            }
+          });
+        }
+
+        checkPortalCollisions();
+
+        // Raycast Interactions
         raycasterInteract.setFromCamera(new THREE.Vector2(0, 0), camera);
         const hits = raycasterInteract.intersectObjects(interactableObjects, true);
 
         if (hits.length > 0 && hits[0].distance < 3.5) {
           let hitObj = hits[0].object;
-
           while (hitObj.parent && hitObj.parent !== scene && !hitObj.userData.isItem && !hitObj.userData.isShop) {
             hitObj = hitObj.parent;
           }
 
-          if (hitObj.userData.isShop) {
+          if (hitObj.userData.isShop || hitObj.userData.isItem) {
             hoveredObject = hitObj;
             promptItemName.textContent = hitObj.userData.name || 'Item Shop';
-            interactionPrompt.style.display = 'block';
-          } else if (hitObj.userData.isItem) {
-            hoveredObject = hitObj;
-            promptItemName.textContent = hitObj.userData.name;
             interactionPrompt.style.display = 'block';
           } else {
             hoveredObject = null;
@@ -980,6 +1719,7 @@
           interactionPrompt.style.display = 'none';
         }
 
+        // Floating/Rotating World Items Animation
         itemsInWorld.forEach(item => {
           item.rotation.y += 0.025;
           if (item.userData.baseY !== undefined) {
@@ -987,11 +1727,9 @@
           }
         });
 
-        const isMoving = (moveForward || moveBackward || moveLeft || moveRight) && isGrounded;
-        
+        // Viewmodel Swing & Bobbing
         const idleBobX = Math.sin(time * 0.002) * 0.005;
         const idleBobY = Math.cos(time * 0.003) * 0.008;
-
         const walkSwayX = isMoving ? Math.sin(time * 0.012) * 0.025 : 0;
         const walkSwayY = isMoving ? Math.abs(Math.cos(time * 0.012)) * 0.02 : 0;
 
@@ -999,17 +1737,15 @@
 
         if (isSwinging) {
           swingProgress += delta * swingSpeed;
-          
           if (swingProgress >= 1.0) {
             isSwinging = false;
             swingProgress = 0;
           } else {
             const arc = Math.sin(swingProgress * Math.PI);
-            
-            swingRotX = -arc * 1.3;
-            swingRotY = arc * 0.9;
-            swingRotZ = -arc * 0.6;
-            swingOffsetZ = -arc * 0.2;
+            swingRotX = -arc * 1.3;  
+            swingRotY = arc * 0.9;   
+            swingRotZ = -arc * 0.6;  
+            swingOffsetZ = -arc * 0.2; 
           }
         }
 
@@ -1037,6 +1773,7 @@
     });
 
     updateCoinHUD();
+    updateHealthHUD();
     updateInventoryUI();
     animate();
   </script>
