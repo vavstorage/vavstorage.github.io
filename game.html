@@ -171,6 +171,17 @@
       border: 1px solid #ffd700;
     }
 
+    #inv-hud-btn {
+      color: #4da6ff;
+      border: 1px solid #4da6ff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #inv-hud-btn:hover {
+      background: rgba(77, 166, 255, 0.25);
+    }
+
     /* Interaction Prompt */
     #interaction-prompt {
       position: absolute;
@@ -252,14 +263,13 @@
       max-width: 52px;
     }
 
-    /* Shop Modal UI */
-    #shop-modal {
+    /* Shop & Inventory Modals UI */
+    #shop-modal, #inventory-modal {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       background: rgba(20, 20, 20, 0.95);
-      border: 2px solid #ffd700;
       border-radius: 12px;
       padding: 25px 30px;
       color: #fff;
@@ -267,9 +277,17 @@
       display: none;
       flex-direction: column;
       gap: 15px;
-      min-width: 320px;
+      min-width: 340px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.8);
       backdrop-filter: blur(8px);
+    }
+
+    #shop-modal {
+      border: 2px solid #ffd700;
+    }
+
+    #inventory-modal {
+      border: 2px solid #4da6ff;
     }
 
     .shop-header {
@@ -280,6 +298,10 @@
       font-weight: bold;
       border-bottom: 1px solid #444;
       padding-bottom: 10px;
+    }
+
+    #inventory-modal .shop-header {
+      color: #4da6ff;
     }
 
     .shop-item {
@@ -329,6 +351,58 @@
 
     .close-shop-btn:hover {
       background: #bd2130;
+    }
+
+    /* Inner Storage Inventory Grid Styles */
+    .inv-section-title {
+      font-size: 12px;
+      color: #aaa;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 5px;
+    }
+
+    .inv-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      justify-items: center;
+    }
+
+    .inv-slot {
+      width: 54px;
+      height: 54px;
+      background: rgba(35, 35, 35, 0.85);
+      border: 2px solid #555;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .inv-slot:hover {
+      border-color: #4da6ff;
+      background: rgba(50, 75, 100, 0.85);
+    }
+
+    .inv-slot.source-selected {
+      border-color: #ffd700;
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+      background: rgba(80, 70, 20, 0.85);
+      transform: scale(1.05);
+    }
+
+    .inv-slot-num {
+      position: absolute;
+      top: 3px;
+      left: 5px;
+      font-size: 9px;
+      color: #777;
     }
 
     @media (max-width: 768px) {
@@ -383,7 +457,7 @@
 
       <div class="instructions-text">
         <b>Controls:</b> WASD to Move | Space to Jump | Left Click to Attack | Right Click / F to Use Item (Potion)<br>
-        <b>Interact / Shop:</b> E | <b>Drop Item:</b> Q | <b>Pause / Close Shop:</b> ESC
+        <b>Interact / Shop:</b> E | <b>Inventory (Inner Slots):</b> I / TAB | <b>Drop Item:</b> Q | <b>Pause / Close UI:</b> ESC
       </div>
     </div>
   </div>
@@ -393,6 +467,7 @@
   <div id="top-hud">
     <div id="health-hud" class="hud-box">❤️ Health: <span id="health-count">100</span> / 100</div>
     <div id="coin-hud" class="hud-box">🪙 Coins: <span id="coin-count">10</span></div>
+    <div id="inv-hud-btn" class="hud-box">🎒 Inventory [I]</div>
   </div>
 
   <div id="interaction-prompt">Press <b>E</b> to interact with <span id="prompt-item-name" style="color: #28a745; font-weight: bold;">Item</span></div>
@@ -407,6 +482,11 @@
 
   <div id="shop-modal">
     <div class="shop-header">🏪 Item Shop</div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🏎️</span> <b>Sports Car (3x Speed)</b></div>
+      <button class="buy-btn" data-item="car" data-price="25">25 🪙 Buy</button>
+    </div>
 
     <div class="shop-item">
       <div class="shop-item-info"><span>⚔️</span> <b>Iron Sword</b></div>
@@ -429,6 +509,20 @@
     </div>
 
     <button class="close-shop-btn" id="closeShopBtn">Close Shop</button>
+  </div>
+
+  <div id="inventory-modal">
+    <div class="shop-header">🎒 Player Inventory</div>
+
+    <div class="inv-section-title">📦 Storage (Inner Slots)</div>
+    <div id="inner-grid" class="inv-grid"></div>
+
+    <div class="inv-section-title">⚡ Active Hotbar</div>
+    <div id="hotbar-grid" class="inv-grid"></div>
+
+    <div style="font-size: 11px; color: #888; text-align: center; margin-top: 4px;">Click an item slot to select and move/swap items.</div>
+
+    <button class="close-shop-btn" id="closeInvBtn">Close Inventory</button>
   </div>
 
   <script type="module">
@@ -458,10 +552,12 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
-    // 2. Controls & Blocker UI Elements
+    // 2. Controls & UI Elements
     const blocker = document.getElementById('blocker');
     const startBtn = document.getElementById('startBtn');
     const shopModal = document.getElementById('shop-modal');
+    const inventoryModal = document.getElementById('inventory-modal');
+    const invHudBtn = document.getElementById('inv-hud-btn');
     const loadingStatus = document.getElementById('loading-status');
     const damageFlash = document.getElementById('damage-flash');
     const healthCountDisplay = document.getElementById('health-count');
@@ -471,6 +567,7 @@
     const controls = new PointerLockControls(camera, document.body);
 
     let isShopOpen = false;
+    let isInventoryOpen = false;
 
     startBtn.addEventListener('click', () => {
       controls.lock();
@@ -479,11 +576,13 @@
     controls.addEventListener('lock', () => {
       blocker.style.display = 'none';
       shopModal.style.display = 'none';
+      inventoryModal.style.display = 'none';
       isShopOpen = false;
+      isInventoryOpen = false;
     });
 
     controls.addEventListener('unlock', () => {
-      if (!isShopOpen) {
+      if (!isShopOpen && !isInventoryOpen) {
         blocker.style.display = 'flex';
       }
     });
@@ -600,12 +699,13 @@
             camera.getWorldDirection(camDir);
 
             if (camDir.dot(dirToEnemy) > 0.4) {
-              let damage = 10;
-              if (item) {
-                if (item.name.includes('Iron')) damage = 25;
-                else if (item.name.includes('Stone')) damage = 18;
-                else if (item.name.includes('Diamond')) damage = 35;
-              }
+             let damage = 10;
+             if (item) {
+             if (item.name.includes('Iron')) damage = 25;
+             else if (item.name.includes('Stone')) damage = 18;
+             else if (item.name.includes('Diamond')) damage = 35;
+             else if (item.name.includes('Car')) damage = 30; // 👈 ADD THIS LINE
+           }
 
               enemy.health -= damage;
 
@@ -658,7 +758,7 @@
     }
 
     window.addEventListener('mousedown', (e) => {
-      if (controls.isLocked && !isShopOpen) {
+      if (controls.isLocked && !isShopOpen && !isInventoryOpen) {
         if (e.button === 0) triggerAttack();
         if (e.button === 2) useSelectedItem();
       }
@@ -673,7 +773,7 @@
     const velocity = new THREE.Vector3();
     const direction = new THREE.Vector3();
 
-    const moveSpeed = 8.0;          
+    const moveSpeed = 5.0;          
     const gravity = 25.0;            
     const fallMultiplier = 1.4;      
     const jumpStrength = 8.5;        
@@ -810,8 +910,15 @@
 
     // --- INVENTORY & ITEMS DATA ---
     let playerCoins = 10;
-    const inventory = [null, null, null, null, null];
-    let selectedSlot = 0;
+    
+    // Inventory: 5 Hotbar Slots (0-4) + 15 Inner Storage Slots (5-19) = 20 Total Slots
+    const HOTBAR_SLOTS = 5;
+    const INNER_SLOTS = 15;
+    const TOTAL_SLOTS = HOTBAR_SLOTS + INNER_SLOTS;
+    const inventory = new Array(TOTAL_SLOTS).fill(null);
+    let selectedSlot = 0; // Active Hotbar Index (0..4)
+    let selectedSwapSourceIndex = null; // Used for clicking & swapping items in GUI
+
     const itemsInWorld = [];
     const interactableObjects = [];
     let hoveredObject = null;
@@ -820,12 +927,20 @@
     const coinCountDisplay = document.getElementById('coin-count');
     const interactionPrompt = document.getElementById('interaction-prompt');
     const promptItemName = document.getElementById('prompt-item-name');
+    const innerGridEl = document.getElementById('inner-grid');
+    const hotbarGridEl = document.getElementById('hotbar-grid');
 
     function updateCoinHUD() {
       coinCountDisplay.textContent = playerCoins;
     }
 
     const itemCatalog = {
+      car: {
+      name: 'Sports Car',
+      icon: '🏎️',
+      geometry: new THREE.BoxGeometry(0.35, 0.2, 0.65),
+      material: new THREE.MeshStandardMaterial({ color: 0xef233c, metalness: 0.8, roughness: 0.2 })
+    },
       iron_sword: {
         name: 'Iron Sword',
         icon: '⚔️',
@@ -977,7 +1092,67 @@
       }
     }
 
+    // --- INVENTORY UI & SWAP SYSTEM ---
+    function findFirstEmptySlot() {
+      // Check hotbar first (0..4), then inner slots (5..19)
+      for (let i = 0; i < TOTAL_SLOTS; i++) {
+        if (inventory[i] === null) return i;
+      }
+      return -1;
+    }
+
+    function handleSlotClickInModal(slotIndex) {
+      if (selectedSwapSourceIndex === null) {
+        if (inventory[slotIndex] !== null) {
+          selectedSwapSourceIndex = slotIndex;
+        }
+      } else if (selectedSwapSourceIndex === slotIndex) {
+        selectedSwapSourceIndex = null;
+      } else {
+        // Swap items between slots
+        const temp = inventory[selectedSwapSourceIndex];
+        inventory[selectedSwapSourceIndex] = inventory[slotIndex];
+        inventory[slotIndex] = temp;
+        selectedSwapSourceIndex = null;
+      }
+      updateInventoryUI();
+    }
+
+    function renderModalInventoryGrids() {
+      innerGridEl.innerHTML = '';
+      hotbarGridEl.innerHTML = '';
+
+      // Render Inner Storage Slots (5..19)
+      for (let i = HOTBAR_SLOTS; i < TOTAL_SLOTS; i++) {
+        const item = inventory[i];
+        const slotEl = document.createElement('div');
+        slotEl.className = 'inv-slot' + (selectedSwapSourceIndex === i ? ' source-selected' : '');
+        slotEl.innerHTML = `
+          <span class="inv-slot-num">${i + 1}</span>
+          <span style="font-size: 20px;">${item ? (item.icon || '📦') : ''}</span>
+          <span class="slot-name" style="font-size: 8px;">${item ? item.name : ''}</span>
+        `;
+        slotEl.addEventListener('click', () => handleSlotClickInModal(i));
+        innerGridEl.appendChild(slotEl);
+      }
+
+      // Render Hotbar Slots (0..4) in Modal
+      for (let i = 0; i < HOTBAR_SLOTS; i++) {
+        const item = inventory[i];
+        const slotEl = document.createElement('div');
+        slotEl.className = 'inv-slot' + (selectedSwapSourceIndex === i ? ' source-selected' : '');
+        slotEl.innerHTML = `
+          <span class="inv-slot-num">${i + 1}</span>
+          <span style="font-size: 20px;">${item ? (item.icon || '📦') : ''}</span>
+          <span class="slot-name" style="font-size: 8px;">${item ? item.name : ''}</span>
+        `;
+        slotEl.addEventListener('click', () => handleSlotClickInModal(i));
+        hotbarGridEl.appendChild(slotEl);
+      }
+    }
+
     function updateInventoryUI() {
+      // Update HUD Hotbar (0..4)
       const slots = document.querySelectorAll('#inventory-bar .slot');
       slots.forEach((slotEl, idx) => {
         slotEl.classList.toggle('active', idx === selectedSlot);
@@ -994,6 +1169,7 @@
         }
       });
 
+      renderModalInventoryGrids();
       updateHeldWeaponModel();
     }
 
@@ -1009,7 +1185,7 @@
         playerCoins += 10;
         updateCoinHUD();
       } else {
-        const emptyIndex = inventory.findIndex(slot => slot === null);
+        const emptyIndex = findFirstEmptySlot();
         if (emptyIndex === -1) {
           alert("Inventory Full!");
           return;
@@ -1034,9 +1210,9 @@
     }
 
     function addItemToInventory(itemData) {
-      const emptyIndex = inventory.findIndex(slot => slot === null);
+      const emptyIndex = findFirstEmptySlot();
       if (emptyIndex === -1) {
-        alert("Inventory Full! Drop an item first.");
+        alert("Inventory Full! Drop or move an item first.");
         return false;
       }
       inventory[emptyIndex] = {
@@ -1079,7 +1255,30 @@
       controls.lock();
     }
 
+    function openInventory() {
+      isInventoryOpen = true;
+      selectedSwapSourceIndex = null;
+      if (controls.isLocked) controls.unlock();
+      inventoryModal.style.display = 'flex';
+      interactionPrompt.style.display = 'none';
+      updateInventoryUI();
+    }
+
+    function closeInventory() {
+      inventoryModal.style.display = 'none';
+      isInventoryOpen = false;
+      selectedSwapSourceIndex = null;
+      controls.lock();
+    }
+
+    function toggleInventory() {
+      if (isInventoryOpen) closeInventory();
+      else openInventory();
+    }
+
     document.getElementById('closeShopBtn').addEventListener('click', closeShop);
+    document.getElementById('closeInvBtn').addEventListener('click', closeInventory);
+    invHudBtn.addEventListener('click', toggleInventory);
 
     document.querySelectorAll('.buy-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1138,19 +1337,22 @@
         updateCoinHUD();
         updateHealthHUD();
 
-        saveData.inventory.forEach((itemName, idx) => {
-          if (!itemName) {
-            inventory[idx] = null;
-          } else {
-            const catKey = Object.keys(itemCatalog).find(k => itemCatalog[k].name === itemName);
-            if (catKey) {
-              const tmpl = itemCatalog[catKey];
-              inventory[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material };
-            } else {
+        if (Array.isArray(saveData.inventory)) {
+          saveData.inventory.forEach((itemName, idx) => {
+            if (idx >= TOTAL_SLOTS) return;
+            if (!itemName) {
               inventory[idx] = null;
+            } else {
+              const catKey = Object.keys(itemCatalog).find(k => itemCatalog[k].name === itemName);
+              if (catKey) {
+                const tmpl = itemCatalog[catKey];
+                inventory[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material };
+              } else {
+                inventory[idx] = null;
+              }
             }
-          }
-        });
+          });
+        }
         updateInventoryUI();
 
         if (saveData.position) {
@@ -1167,14 +1369,21 @@
     document.getElementById('saveBtn').addEventListener('click', saveGame);
     document.getElementById('loadBtn').addEventListener('click', loadGame);
 
-    // Keyboard Control
+    // Keyboard Controls
     const onKeyDown = (e) => {
-      if (e.code === 'Escape' || (isShopOpen && e.code === 'KeyE')) {
-        if (isShopOpen) closeShop();
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        toggleInventory();
         return;
       }
 
-      if (isShopOpen) return;
+      if (e.code === 'Escape') {
+        if (isShopOpen) closeShop();
+        if (isInventoryOpen) closeInventory();
+        return;
+      }
+
+      if (isShopOpen || isInventoryOpen) return;
 
       switch (e.code) {
         case 'KeyW': case 'ArrowUp': moveForward = true; break;
@@ -1183,6 +1392,7 @@
         case 'KeyD': case 'ArrowRight': moveRight = true; break;
         case 'Space': performJump(); break;
         case 'KeyE': handleInteraction(); break;
+        case 'KeyI': toggleInventory(); break;
         case 'KeyF': useSelectedItem(); break;
         case 'KeyQ': if (controls.isLocked) dropSelectedItem(); break;
         case 'Digit1': selectedSlot = 0; updateInventoryUI(); break;
@@ -1203,9 +1413,9 @@
     };
 
     window.addEventListener('wheel', (e) => {
-      if (!controls.isLocked || isShopOpen) return;
-      if (e.deltaY > 0) selectedSlot = (selectedSlot + 1) % 5;
-      else if (e.deltaY < 0) selectedSlot = (selectedSlot - 1 + 5) % 5;
+      if (!controls.isLocked || isShopOpen || isInventoryOpen) return;
+      if (e.deltaY > 0) selectedSlot = (selectedSlot + 1) % HOTBAR_SLOTS;
+      else if (e.deltaY < 0) selectedSlot = (selectedSlot - 1 + HOTBAR_SLOTS) % HOTBAR_SLOTS;
       updateInventoryUI();
     });
 
@@ -1335,7 +1545,7 @@
       requestAnimationFrame(animate);
       const time = performance.now();
 
-      if (controls.isLocked && !isShopOpen) {
+      if (controls.isLocked && !isShopOpen && !isInventoryOpen) {
         const delta = Math.min((time - prevTime) / 1000, 0.1);
 
         const damping = isGrounded ? groundDamping : airDamping;
@@ -1351,9 +1561,13 @@
         direction.x = Number(moveRight) - Number(moveLeft);
         direction.normalize();
 
-        const accel = isGrounded ? moveSpeed : moveSpeed * 0.3;
-        if (moveForward || moveBackward) velocity.z -= direction.z * accel * delta * 10;
-        if (moveLeft || moveRight) velocity.x -= direction.x * accel * delta * 10;
+        const currentItem = inventory[selectedSlot];
+        const isDrivingCar = currentItem && currentItem.name.includes('Car');
+        const currentMoveSpeed = isDrivingCar ? moveSpeed * 3.0 : moveSpeed;
+        
+       const accel = isGrounded ? currentMoveSpeed : currentMoveSpeed * 0.3;
+       if (moveForward || moveBackward) velocity.z -= direction.z * accel * delta * 10;
+       if (moveLeft || moveRight) velocity.x -= direction.x * accel * delta * 10;
 
         const targets = loadedModel ? [loadedModel] : [];
         const oldPos = controls.getObject().position.clone();
