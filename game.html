@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D First-Person Game - GitHub GLB Loader</title>
   <style>
     body {
@@ -12,7 +12,6 @@
       font-family: Arial, sans-serif;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: manipulation;
     }
 
     /* Red Flash Overlay for Damage */
@@ -216,7 +215,6 @@
       transition: all 0.15s ease;
       backdrop-filter: blur(4px);
       cursor: pointer;
-      touch-action: manipulation;
     }
 
     .slot.active {
@@ -333,89 +331,6 @@
       background: #bd2130;
     }
 
-    /* TOUCH CONTROLS OVERLAY */
-    #touch-controls {
-      display: none;
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 12;
-    }
-
-    body.touch-enabled #touch-controls {
-      display: block;
-    }
-
-    /* Virtual Joystick */
-    #joystick-zone {
-      position: absolute;
-      bottom: 25px;
-      left: 20px;
-      width: 120px;
-      height: 120px;
-      pointer-events: auto;
-      touch-action: none;
-    }
-
-    #joystick-base {
-      width: 100%;
-      height: 100%;
-      background: rgba(255, 255, 255, 0.15);
-      border: 2px solid rgba(255, 255, 255, 0.4);
-      border-radius: 50%;
-      position: relative;
-      backdrop-filter: blur(4px);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
-
-    #joystick-stick {
-      width: 50px;
-      height: 50px;
-      background: rgba(255, 255, 255, 0.6);
-      border-radius: 50%;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-      pointer-events: none;
-    }
-
-    /* Touch Action Buttons Grid */
-    #touch-actions {
-      position: absolute;
-      bottom: 25px;
-      right: 20px;
-      display: grid;
-      grid-template-columns: repeat(2, 54px);
-      gap: 12px;
-      pointer-events: auto;
-    }
-
-    .touch-btn {
-      width: 54px;
-      height: 54px;
-      border-radius: 50%;
-      background: rgba(0, 0, 0, 0.65);
-      border: 2px solid rgba(255, 255, 255, 0.4);
-      color: white;
-      font-size: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(4px);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-      touch-action: manipulation;
-    }
-
-    .touch-btn:active {
-      background: rgba(40, 167, 69, 0.85);
-      transform: scale(0.92);
-    }
-
     @media (max-width: 768px) {
       #inventory-bar {
         bottom: 10px;
@@ -427,23 +342,6 @@
       }
       .slot-name {
         display: none;
-      }
-      #joystick-zone {
-        bottom: 65px;
-        left: 15px;
-        width: 100px;
-        height: 100px;
-      }
-      #touch-actions {
-        bottom: 65px;
-        right: 15px;
-        grid-template-columns: repeat(2, 46px);
-        gap: 8px;
-      }
-      .touch-btn {
-        width: 46px;
-        height: 46px;
-        font-size: 18px;
       }
       #interaction-prompt {
         bottom: 160px;
@@ -484,8 +382,7 @@
       <button id="startBtn">CLICK TO PLAY</button>
 
       <div class="instructions-text">
-        <b>Desktop:</b> WASD to Move | Space to Jump | Left Click to Attack | Right Click / F to Use Item (Potion)<br>
-        <b>Touch:</b> Left Joystick | Swipe Right Screen to Look | Touch Buttons for Jump/Attack/Interact/Potion<br>
+        <b>Controls:</b> WASD to Move | Space to Jump | Left Click to Attack | Right Click / F to Use Item (Potion)<br>
         <b>Interact / Shop:</b> E | <b>Drop Item:</b> Q | <b>Pause / Close Shop:</b> ESC
       </div>
     </div>
@@ -506,21 +403,6 @@
     <div class="slot" data-slot="2"><span class="slot-num">3</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
     <div class="slot" data-slot="3"><span class="slot-num">4</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
     <div class="slot" data-slot="4"><span class="slot-num">5</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
-  </div>
-
-  <div id="touch-controls">
-    <div id="joystick-zone">
-      <div id="joystick-base">
-        <div id="joystick-stick"></div>
-      </div>
-    </div>
-
-    <div id="touch-actions">
-      <button id="btn-touch-attack" class="touch-btn" title="Attack">⚔️</button>
-      <button id="btn-touch-jump" class="touch-btn" title="Jump">⬆️</button>
-      <button id="btn-touch-interact" class="touch-btn" title="Interact">✋</button>
-      <button id="btn-touch-use" class="touch-btn" title="Use Item">🧪</button>
-    </div>
   </div>
 
   <div id="shop-modal">
@@ -553,30 +435,6 @@
     import * as THREE from 'three';
     import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-    // Touch Screen Detection
-    let isTouchDevice = false;
-    let touchPlaying = false;
-
-    function enableTouchMode() {
-      if (!isTouchDevice) {
-        isTouchDevice = true;
-        document.body.classList.add('touch-enabled');
-      }
-    }
-
-    function disableTouchMode() {
-      if (isTouchDevice) {
-        isTouchDevice = false;
-        touchPlaying = false;
-        document.body.classList.remove('touch-enabled');
-      }
-    }
-
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-      enableTouchMode();
-    }
-    window.addEventListener('touchstart', enableTouchMode, { passive: true });
 
     // 1. Scene, Camera & Renderer
     const scene = new THREE.Scene();
@@ -615,14 +473,7 @@
     let isShopOpen = false;
 
     startBtn.addEventListener('click', () => {
-      if (isTouchDevice) {
-        touchPlaying = true;
-        blocker.style.display = 'none';
-        shopModal.style.display = 'none';
-        isShopOpen = false;
-      } else {
-        controls.lock();
-      }
+      controls.lock();
     });
 
     controls.addEventListener('lock', () => {
@@ -632,7 +483,7 @@
     });
 
     controls.addEventListener('unlock', () => {
-      if (!isShopOpen && !isTouchDevice) {
+      if (!isShopOpen) {
         blocker.style.display = 'flex';
       }
     });
@@ -662,14 +513,11 @@
     loader.load(
       baseURL + 'enemy.glb',
       (gltf) => {
-        // Wrap model in an inner container group so lookAt() on parent doesn't override model rotation
         const container = new THREE.Group();
         const model = gltf.scene;
 
-        // FIX UPSIDE-DOWN BUG: Flip inner model 180 deg on X-axis
         model.rotation.x = Math.PI; 
 
-        // Scale model to standard 1.5 height
         let box = new THREE.Box3().setFromObject(model);
         let size = box.getSize(new THREE.Vector3());
         if (size.y > 0) {
@@ -677,7 +525,6 @@
           model.scale.set(scale, scale, scale);
         }
 
-        // Adjust position so the bottom of the enemy's feet rests at container y = 0
         box.setFromObject(model);
         model.position.y = -box.min.y;
 
@@ -762,7 +609,6 @@
 
               enemy.health -= damage;
 
-              // White flash effect on damage
               enemy.mesh.traverse((child) => {
                 if (child.isMesh && child.material) {
                   const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -776,7 +622,6 @@
                 }
               });
 
-              // Knockback
               const knockback = dirToEnemy.clone().multiplyScalar(1.2);
               enemy.mesh.position.add(knockback);
 
@@ -813,7 +658,7 @@
     }
 
     window.addEventListener('mousedown', (e) => {
-      if ((controls.isLocked || touchPlaying) && !isShopOpen) {
+      if (controls.isLocked && !isShopOpen) {
         if (e.button === 0) triggerAttack();
         if (e.button === 2) useSelectedItem();
       }
@@ -848,120 +693,6 @@
       }
     }
 
-    // --- TOUCH CONTROLS ---
-    let lookTouchId = null;
-    let lastLookX = 0, lastLookY = 0;
-
-    const joystickZone = document.getElementById('joystick-zone');
-    const joystickStick = document.getElementById('joystick-stick');
-    let joystickTouchId = null;
-    let joystickCenter = { x: 0, y: 0 };
-    const joystickRadius = 40;
-
-    window.addEventListener('touchstart', (e) => {
-      if (!touchPlaying || isShopOpen) return;
-
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        if (t.clientX > window.innerWidth / 2 && lookTouchId === null) {
-          if (!t.target.closest('#touch-actions') && !t.target.closest('#inventory-bar') && !t.target.closest('#shop-modal')) {
-            lookTouchId = t.identifier;
-            lastLookX = t.clientX;
-            lastLookY = t.clientY;
-          }
-        }
-      }
-    });
-
-    window.addEventListener('touchmove', (e) => {
-      if (!touchPlaying || isShopOpen) return;
-
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        if (t.identifier === lookTouchId) {
-          const deltaX = t.clientX - lastLookX;
-          const deltaY = t.clientY - lastLookY;
-
-          const sensitivity = 0.0035;
-          camera.rotation.y -= deltaX * sensitivity;
-          camera.rotation.x -= deltaY * sensitivity;
-
-          const maxPitch = Math.PI / 2 - 0.05;
-          camera.rotation.x = Math.max(-maxPitch, Math.min(maxPitch, camera.rotation.x));
-          camera.updateMatrixWorld();
-
-          lastLookX = t.clientX;
-          lastLookY = t.clientY;
-        }
-      }
-    }, { passive: false });
-
-    function resetLookTouch(e) {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === lookTouchId) {
-          lookTouchId = null;
-        }
-      }
-    }
-
-    window.addEventListener('touchend', resetLookTouch);
-    window.addEventListener('touchcancel', resetLookTouch);
-
-    joystickZone.addEventListener('touchstart', (e) => {
-      if (joystickTouchId !== null || !touchPlaying) return;
-      const t = e.changedTouches[0];
-      joystickTouchId = t.identifier;
-
-      const rect = joystickZone.getBoundingClientRect();
-      joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      updateJoystick(t);
-    });
-
-    joystickZone.addEventListener('touchmove', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === joystickTouchId) {
-          updateJoystick(e.changedTouches[i]);
-          e.preventDefault();
-        }
-      }
-    }, { passive: false });
-
-    function resetJoystick() {
-      joystickTouchId = null;
-      joystickStick.style.transform = `translate(-50%, -50%)`;
-      moveForward = moveBackward = moveLeft = moveRight = false;
-    }
-
-    joystickZone.addEventListener('touchend', resetJoystick);
-    joystickZone.addEventListener('touchcancel', resetJoystick);
-
-    function updateJoystick(touch) {
-      let dx = touch.clientX - joystickCenter.x;
-      let dy = touch.clientY - joystickCenter.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist > joystickRadius) {
-        dx = (dx / dist) * joystickRadius;
-        dy = (dy / dist) * joystickRadius;
-      }
-
-      joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-
-      const normX = dx / joystickRadius;
-      const normY = dy / joystickRadius;
-      const threshold = 0.25;
-
-      moveForward = normY < -threshold;
-      moveBackward = normY > threshold;
-      moveLeft = normX < -threshold;
-      moveRight = normX > threshold;
-    }
-
-    document.getElementById('btn-touch-jump').addEventListener('touchstart', (e) => { e.preventDefault(); performJump(); });
-    document.getElementById('btn-touch-attack').addEventListener('touchstart', (e) => { e.preventDefault(); triggerAttack(); });
-    document.getElementById('btn-touch-interact').addEventListener('touchstart', (e) => { e.preventDefault(); handleInteraction(); });
-    document.getElementById('btn-touch-use').addEventListener('touchstart', (e) => { e.preventDefault(); useSelectedItem(); });
-
     // --- ENEMY SYSTEM ---
     const enemies = [];
     const maxEnemiesOnIsland = 6;
@@ -991,7 +722,6 @@
       let enemyGroup;
       if (enemyModelTemplate) {
         enemyGroup = enemyModelTemplate.clone(true);
-        // Deep clone materials so hit white flash is per-enemy
         enemyGroup.traverse((child) => {
           if (child.isMesh && child.material) {
             child.material = Array.isArray(child.material)
@@ -1154,7 +884,6 @@
       return shopGroup;
     }
 
-    // --- HELPER FUNCTION TO REMOVE FALLBACK SHOP ---
     function removeFallbackShop() {
       if (fallbackShop) {
         scene.remove(fallbackShop);
@@ -1169,20 +898,17 @@
     }
 
     function setupShopFromGLTF(gltfScene) {
-      // 1. Remove previous GLB shop interactable references
       for (let i = interactableObjects.length - 1; i >= 0; i--) {
         if (interactableObjects[i].userData && interactableObjects[i].userData.isGLBShop) {
           interactableObjects.splice(i, 1);
         }
       }
 
-      // 2. Remove the fallback shop from the scene if it exists
       removeFallbackShop();
 
       let foundShop = false;
       const shopKeywords = ['shop', 'store', 'vendor', 'merchant', 'counter', 'stand', 'market', 'kiosk', 'stall', 'npc', 'seller'];
 
-      // 3. Scan the new GLTF model for shop objects
       gltfScene.traverse((child) => {
         if (child.name) {
           const lowerName = child.name.toLowerCase();
@@ -1201,12 +927,10 @@
         }
       });
 
-      // 4. Only spawn the fallback shop if NO shop object was found in the GLTF model
       if (!foundShop) {
         fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
       }
     }
-
 
     function updateInventoryUI() {
       const slots = document.querySelectorAll('#inventory-bar .slot');
@@ -1229,13 +953,10 @@
     }
 
     document.querySelectorAll('#inventory-bar .slot').forEach((slotEl, idx) => {
-      const setSlot = (e) => {
-        e.preventDefault();
+      slotEl.addEventListener('click', () => {
         selectedSlot = idx;
         updateInventoryUI();
-      };
-      slotEl.addEventListener('touchstart', setSlot);
-      slotEl.addEventListener('click', setSlot);
+      });
     });
 
     function pickupItem(itemMesh) {
@@ -1303,7 +1024,6 @@
     function openShop() {
       isShopOpen = true;
       if (controls.isLocked) controls.unlock();
-      touchPlaying = false;
       shopModal.style.display = 'flex';
       interactionPrompt.style.display = 'none';
     }
@@ -1311,8 +1031,7 @@
     function closeShop() {
       shopModal.style.display = 'none';
       isShopOpen = false;
-      if (isTouchDevice) touchPlaying = true;
-      else controls.lock();
+      controls.lock();
     }
 
     document.getElementById('closeShopBtn').addEventListener('click', closeShop);
@@ -1336,7 +1055,7 @@
     });
 
     function handleInteraction() {
-      if (hoveredObject && (controls.isLocked || touchPlaying)) {
+      if (hoveredObject && controls.isLocked) {
         if (hoveredObject.userData.isShop) openShop();
         else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
       }
@@ -1405,8 +1124,6 @@
 
     // Keyboard Control
     const onKeyDown = (e) => {
-      disableTouchMode();
-
       if (e.code === 'Escape' || (isShopOpen && e.code === 'KeyE')) {
         if (isShopOpen) closeShop();
         return;
@@ -1422,7 +1139,7 @@
         case 'Space': performJump(); break;
         case 'KeyE': handleInteraction(); break;
         case 'KeyF': useSelectedItem(); break;
-        case 'KeyQ': if (controls.isLocked || touchPlaying) dropSelectedItem(); break;
+        case 'KeyQ': if (controls.isLocked) dropSelectedItem(); break;
         case 'Digit1': selectedSlot = 0; updateInventoryUI(); break;
         case 'Digit2': selectedSlot = 1; updateInventoryUI(); break;
         case 'Digit3': selectedSlot = 2; updateInventoryUI(); break;
@@ -1441,7 +1158,7 @@
     };
 
     window.addEventListener('wheel', (e) => {
-      if ((!controls.isLocked && !touchPlaying) || isShopOpen) return;
+      if (!controls.isLocked || isShopOpen) return;
       if (e.deltaY > 0) selectedSlot = (selectedSlot + 1) % 5;
       else if (e.deltaY < 0) selectedSlot = (selectedSlot - 1 + 5) % 5;
       updateInventoryUI();
@@ -1572,7 +1289,7 @@
       requestAnimationFrame(animate);
       const time = performance.now();
 
-      if ((controls.isLocked || touchPlaying) && !isShopOpen) {
+      if (controls.isLocked && !isShopOpen) {
         const delta = Math.min((time - prevTime) / 1000, 0.1);
 
         const damping = isGrounded ? groundDamping : airDamping;
@@ -1659,7 +1376,6 @@
             const dist = enemy.mesh.position.distanceTo(playerPos);
 
             if (dist > 1.2 && dist < 22) {
-              // Enemy Movement
               const dir = playerPos.clone().sub(enemy.mesh.position);
               dir.y = 0;
               dir.normalize();
@@ -1667,11 +1383,9 @@
               enemy.mesh.position.add(dir.multiplyScalar(enemy.speed * delta));
               enemy.mesh.lookAt(playerPos.x, enemy.mesh.position.y, playerPos.z);
 
-              // Waddling Animation
               const enemyWalkCycle = (time * 0.01) + enemy.animOffset;
               enemy.mesh.rotation.z = Math.sin(enemyWalkCycle) * 0.12; 
 
-              // Dynamic floor height snap (prevents floating in sky or sinking)
               let groundY = enemy.baseY;
               if (loadedModel) {
                 const floorRay = new THREE.Raycaster(
@@ -1686,7 +1400,6 @@
               enemy.mesh.position.y = groundY + bounce;
             }
 
-            // Enemy Attack Player
             if (dist < 1.6 && time - enemy.lastAttackTime > 1200) {
               enemy.lastAttackTime = time;
               takeDamage(15);
