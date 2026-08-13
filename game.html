@@ -693,30 +693,74 @@
       }
     }
 
-    // --- ENEMY SYSTEM ---
+    // --- ENEMY & SPAWNER SYSTEM ---
     const enemies = [];
-    const maxEnemiesOnIsland = 6;
+    const maxEnemiesOnIsland = 2;
     const enemySpawnIntervalMs = 4000;
+    let spawnerMeshes = [];
 
     function clearEnemies() {
       for (let i = enemies.length - 1; i >= 0; i--) scene.remove(enemies[i].mesh);
       enemies.length = 0;
     }
 
+    function detectSpawnersInModel(gltfScene) {
+      spawnerMeshes = [];
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('spawner')) {
+          if (child.isMesh) {
+            if (!spawnerMeshes.includes(child)) spawnerMeshes.push(child);
+          } else {
+            child.traverse((sub) => {
+              if (sub.isMesh && !spawnerMeshes.includes(sub)) {
+                spawnerMeshes.push(sub);
+              }
+            });
+          }
+        }
+      });
+    }
+
     function spawnEnemy() {
-      if (!currentLoadedFileName.toLowerCase().includes('island') || enemies.length >= maxEnemiesOnIsland) return;
+      const hasSpawners = spawnerMeshes.length > 0;
+      if ((!hasSpawners && !currentLoadedFileName.toLowerCase().includes('island')) || enemies.length >= maxEnemiesOnIsland) return;
 
-      const radius = 16;
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 6.0 + Math.random() * radius;
-      const x = Math.cos(angle) * dist;
-      const z = Math.sin(angle) * dist;
-      let spawnY = 0.8;
+      let spawnX = 0, spawnZ = 0, spawnY = 0.8;
+      let targetSpawner = null;
 
-      if (loadedModel) {
-        const floorRay = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
-        const hits = floorRay.intersectObject(loadedModel, true);
-        if (hits.length > 0) spawnY = hits[0].point.y + 0.05;
+      if (hasSpawners) {
+        targetSpawner = spawnerMeshes[Math.floor(Math.random() * spawnerMeshes.length)];
+        const box = new THREE.Box3().setFromObject(targetSpawner);
+        
+        const minX = Math.min(box.min.x, box.max.x);
+        const maxX = Math.max(box.min.x, box.max.x);
+        const minZ = Math.min(box.min.z, box.max.z);
+        const maxZ = Math.max(box.min.z, box.max.z);
+
+        spawnX = THREE.MathUtils.lerp(minX, maxX, Math.random());
+        spawnZ = THREE.MathUtils.lerp(minZ, maxZ, Math.random());
+
+        const ray = new THREE.Raycaster(new THREE.Vector3(spawnX, box.max.y + 5, spawnZ), new THREE.Vector3(0, -1, 0));
+        const hits = ray.intersectObject(targetSpawner, true);
+        if (hits.length > 0) {
+          spawnY = hits[0].point.y + 0.05;
+          spawnX = hits[0].point.x;
+          spawnZ = hits[0].point.z;
+        } else {
+          spawnY = box.max.y + 0.05;
+        }
+      } else {
+        const radius = 16;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 6.0 + Math.random() * radius;
+        spawnX = Math.cos(angle) * dist;
+        spawnZ = Math.sin(angle) * dist;
+
+        if (loadedModel) {
+          const floorRay = new THREE.Raycaster(new THREE.Vector3(spawnX, 50, spawnZ), new THREE.Vector3(0, -1, 0));
+          const hits = floorRay.intersectObject(loadedModel, true);
+          if (hits.length > 0) spawnY = hits[0].point.y + 0.05;
+        }
       }
 
       let enemyGroup;
@@ -729,7 +773,7 @@
               : child.material.clone();
           }
         });
-        enemyGroup.position.set(x, spawnY, z);
+        enemyGroup.position.set(spawnX, spawnY, spawnZ);
       } else {
         enemyGroup = new THREE.Group();
         const bodyMesh = new THREE.Mesh(
@@ -746,7 +790,7 @@
         rightEye.position.set(0.15, 1.0, -0.3);
         enemyGroup.add(leftEye, rightEye);
 
-        enemyGroup.position.set(x, spawnY, z);
+        enemyGroup.position.set(spawnX, spawnY, spawnZ);
       }
 
       scene.add(enemyGroup);
@@ -757,7 +801,8 @@
         speed: 2.5,
         lastAttackTime: 0,
         animOffset: Math.random() * 10,
-        baseY: spawnY
+        baseY: spawnY,
+        spawnerMesh: targetSpawner
       });
     }
 
@@ -1235,8 +1280,9 @@
           scene.add(loadedModel);
 
           currentLoadedFileName = displayName;
-          if (!displayName.toLowerCase().includes('island')) clearEnemies();
+          clearEnemies();
 
+          detectSpawnersInModel(loadedModel);
           setupShopFromGLTF(loadedModel);
           detectPortalsInModel(loadedModel);
 
@@ -1369,7 +1415,7 @@
         }
 
         // ENEMY AI & WALKING ANIMATIONS
-        if (currentLoadedFileName.toLowerCase().includes('island')) {
+        if (enemies.length > 0) {
           const playerPos = controls.getObject().position;
 
           enemies.forEach((enemy) => {
@@ -1380,24 +1426,54 @@
               dir.y = 0;
               dir.normalize();
 
-              enemy.mesh.position.add(dir.multiplyScalar(enemy.speed * delta));
+              const step = dir.multiplyScalar(enemy.speed * delta);
+
+              if (enemy.spawnerMesh) {
+                const box = new THREE.Box3().setFromObject(enemy.spawnerMesh);
+
+                // Axis-independent collision check to stay strictly on top of spawnerMesh
+                const stepX = new THREE.Vector3(step.x, 0, 0);
+                const testPosX = enemy.mesh.position.clone().add(stepX);
+                const rayX = new THREE.Raycaster(
+                  new THREE.Vector3(testPosX.x, box.max.y + 2, testPosX.z),
+                  new THREE.Vector3(0, -1, 0)
+                );
+                const hitsX = rayX.intersectObject(enemy.spawnerMesh, true);
+                if (hitsX.length > 0) {
+                  enemy.mesh.position.x = testPosX.x;
+                  enemy.baseY = hitsX[0].point.y;
+                }
+
+                const stepZ = new THREE.Vector3(0, 0, step.z);
+                const testPosZ = enemy.mesh.position.clone().add(stepZ);
+                const rayZ = new THREE.Raycaster(
+                  new THREE.Vector3(testPosZ.x, box.max.y + 2, testPosZ.z),
+                  new THREE.Vector3(0, -1, 0)
+                );
+                const hitsZ = rayZ.intersectObject(enemy.spawnerMesh, true);
+                if (hitsZ.length > 0) {
+                  enemy.mesh.position.z = testPosZ.z;
+                  enemy.baseY = hitsZ[0].point.y;
+                }
+              } else {
+                enemy.mesh.position.add(step);
+                if (loadedModel) {
+                  const floorRay = new THREE.Raycaster(
+                    new THREE.Vector3(enemy.mesh.position.x, enemy.mesh.position.y + 10, enemy.mesh.position.z),
+                    new THREE.Vector3(0, -1, 0)
+                  );
+                  const hits = floorRay.intersectObject(loadedModel, true);
+                  if (hits.length > 0) enemy.baseY = hits[0].point.y;
+                }
+              }
+
               enemy.mesh.lookAt(playerPos.x, enemy.mesh.position.y, playerPos.z);
 
               const enemyWalkCycle = (time * 0.01) + enemy.animOffset;
               enemy.mesh.rotation.z = Math.sin(enemyWalkCycle) * 0.12; 
 
-              let groundY = enemy.baseY;
-              if (loadedModel) {
-                const floorRay = new THREE.Raycaster(
-                  new THREE.Vector3(enemy.mesh.position.x, enemy.mesh.position.y + 10, enemy.mesh.position.z),
-                  new THREE.Vector3(0, -1, 0)
-                );
-                const hits = floorRay.intersectObject(loadedModel, true);
-                if (hits.length > 0) groundY = hits[0].point.y;
-              }
-
               const bounce = Math.abs(Math.sin(enemyWalkCycle * 2)) * 0.08;
-              enemy.mesh.position.y = groundY + bounce;
+              enemy.mesh.position.y = enemy.baseY + bounce;
             }
 
             if (dist < 1.6 && time - enemy.lastAttackTime > 1200) {
