@@ -471,7 +471,7 @@
   
   <div id="top-hud">
     <div id="health-hud" class="hud-box">❤️ Health: <span id="health-count">100</span> / 100</div>
-    <div id="fuel-hud" class="hud-box">⛽ Fuel: <span id="fuel-count">100</span>%</div>
+    <div id="fuel-hud" class="hud-box">⛽ Fuel: <span id="fuel-count">200</span> / 200</div>
     <div id="coin-hud" class="hud-box">🪙 Coins: <span id="coin-count">10</span></div>
     <div id="inv-hud-btn" class="hud-box">🎒 Inventory [I]</div>
   </div>
@@ -495,7 +495,7 @@
     </div>
 
     <div class="shop-item">
-      <div class="shop-item-info"><span>⛽</span> <b>Fuel Tank (+50% Fuel)</b></div>
+      <div class="shop-item-info"><span>⛽</span> <b>Fuel Tank (+100 Fuel)</b></div>
       <button class="buy-btn" data-item="fuel_tank" data-price="10">10 🪙 Buy</button>
     </div>
 
@@ -554,8 +554,8 @@
     let playerHealth = 100;
     const maxPlayerHealth = 100;
 
-    let playerFuel = 100;
-    const maxPlayerFuel = 100;
+    let playerFuel = 200;       // Max capacity enlarged to 200
+    const maxPlayerFuel = 200;
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 1000);
     camera.position.set(0, playerHeight + 2, 0); 
@@ -695,7 +695,7 @@
       }
       playerFuel = Math.min(maxPlayerFuel, playerFuel + amount);
       updateFuelHUD();
-      alert(`Refueled! Current Fuel: ${Math.round(playerFuel)}%`);
+      alert(`Refueled! Current Fuel: ${Math.round(playerFuel)} / ${maxPlayerFuel}`);
       return true;
     }
 
@@ -711,7 +711,7 @@
           alert("Health is already full!");
         }
       } else if (item.name.includes('Fuel Tank')) {
-        if (refuelPlayer(50)) {
+        if (refuelPlayer(100)) { // Refills 100 units
           inventory[selectedSlot] = null;
           updateInventoryUI();
         }
@@ -979,7 +979,7 @@
       fuel_tank: {
         name: 'Fuel Tank',
         icon: '⛽',
-        geometry: new THREE.CylinderGeometry(0.12, 0.12, 0.35, 12),
+        geometry: new THREE.CylinderGeometry(0.2, 0.2, 0.5, 12), // Enlarged geometry model
         material: new THREE.MeshStandardMaterial({ color: 0xdd2222, roughness: 0.3 })
       },
       iron_sword: {
@@ -1360,7 +1360,7 @@
     function handleInteraction() {
       if (hoveredObject && controls.isLocked) {
         if (hoveredObject.userData.isShop) openShop();
-        else if (hoveredObject.userData.isGasStation) refuelPlayer(100);
+        else if (hoveredObject.userData.isGasStation) refuelPlayer(200);
         else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
       }
     }
@@ -1395,7 +1395,7 @@
         const saveData = JSON.parse(rawData);
         playerCoins = saveData.coins || 10;
         playerHealth = saveData.health || 100;
-        playerFuel = (saveData.fuel !== undefined) ? saveData.fuel : 100;
+        playerFuel = (saveData.fuel !== undefined) ? saveData.fuel : 200;
         updateCoinHUD();
         updateHealthHUD();
         updateFuelHUD();
@@ -1635,7 +1635,7 @@
           if (playerFuel > 0) {
             currentMoveSpeed = moveSpeed * 3.0;
             if (isMoving) {
-              playerFuel = Math.max(0, playerFuel - 6.0 * delta); // Burn fuel while driving
+              playerFuel = Math.max(0, playerFuel - 2.0 * delta); // Burn fuel 3x slower
               updateFuelHUD();
             }
           } else {
