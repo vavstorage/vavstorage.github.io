@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D First-Person Game - GitHub GLB Loader</title>
+  <title>3D First-Person Game - GitHub GLB Loader with AI Helicopters & Bow System</title>
   <style>
     body {
       margin: 0;
@@ -171,6 +171,11 @@
       border: 1px solid #ff9900;
     }
 
+    #arrow-hud {
+      color: #d2b48c;
+      border: 1px solid #d2b48c;
+    }
+
     #coin-hud {
       color: #ffd700;
       border: 1px solid #ffd700;
@@ -281,8 +286,10 @@
       z-index: 25;
       display: none;
       flex-direction: column;
-      gap: 15px;
+      gap: 12px;
       min-width: 340px;
+      max-height: 85vh;
+      overflow-y: auto;
       box-shadow: 0 10px 30px rgba(0,0,0,0.8);
       backdrop-filter: blur(8px);
     }
@@ -461,8 +468,8 @@
       <button id="startBtn">CLICK TO PLAY</button>
 
       <div class="instructions-text">
-        <b>Controls:</b> WASD to Move | Space to Jump | Left Click to Attack | Right Click / F to Use Item (Potion/Fuel)<br>
-        <b>Interact / Shop / Gas Station:</b> E | <b>Inventory (Inner Slots):</b> I / TAB | <b>Drop Item:</b> Q | <b>Pause / Close UI:</b> ESC
+        <b>Controls:</b> WASD to Move | Space to Jump / Fly Helicopter | Left Click to Attack / Shoot Bow<br>
+        <b>Interact / Shop / Gas Station:</b> E | <b>Inventory:</b> I / TAB | <b>Use Consumable:</b> Right Click / F | <b>Drop:</b> Q | <b>Pause:</b> ESC
       </div>
     </div>
   </div>
@@ -472,6 +479,7 @@
   <div id="top-hud">
     <div id="health-hud" class="hud-box">❤️ Health: <span id="health-count">100</span> / 100</div>
     <div id="fuel-hud" class="hud-box">⛽ Fuel: <span id="fuel-count">200</span> / 200</div>
+    <div id="arrow-hud" class="hud-box">🏹 Arrows: <span id="arrow-count">20</span></div>
     <div id="coin-hud" class="hud-box">🪙 Coins: <span id="coin-count">10</span></div>
     <div id="inv-hud-btn" class="hud-box">🎒 Inventory [I]</div>
   </div>
@@ -488,6 +496,21 @@
 
   <div id="shop-modal">
     <div class="shop-header">🏪 Item Shop</div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🏹</span> <b>Hunting Bow</b></div>
+      <button class="buy-btn" data-item="bow" data-price="18">18 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>📦</span> <b>Arrow Bundle (+15 Arrows)</b></div>
+      <button class="buy-btn" data-item="arrows" data-price="5">5 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🚁</span> <b>Personal Helicopter</b></div>
+      <button class="buy-btn" data-item="helicopter" data-price="35">35 🪙 Buy</button>
+    </div>
 
     <div class="shop-item">
       <div class="shop-item-info"><span>🏎️</span> <b>Sports Car (3x Speed)</b></div>
@@ -546,16 +569,18 @@
     scene.background = new THREE.Color(0x87ceeb); // Sky blue
     scene.fog = new THREE.Fog(0x87ceeb, 0, 100);
 
-    // --- PLAYER SCALE, HEALTH & FUEL SETTINGS ---
-    const playerHeight = 0.6;   // Base eye-level camera height
-    const playerRadius = 0.25;  // Collision width
-    const maxStepHeight = 0.2;  // Max step height
+    // --- PLAYER SCALE, HEALTH, FUEL & ARROWS SETTINGS ---
+    const playerHeight = 0.6;   
+    const playerRadius = 0.25;  
+    const maxStepHeight = 0.2;  
 
     let playerHealth = 100;
     const maxPlayerHealth = 100;
 
-    let playerFuel = 200;       // Max capacity enlarged to 200
+    let playerFuel = 200;       
     const maxPlayerFuel = 200;
+
+    let playerArrows = 20;
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 1000);
     camera.position.set(0, playerHeight + 2, 0); 
@@ -576,6 +601,7 @@
     const damageFlash = document.getElementById('damage-flash');
     const healthCountDisplay = document.getElementById('health-count');
     const fuelCountDisplay = document.getElementById('fuel-count');
+    const arrowCountDisplay = document.getElementById('arrow-count');
     const fileInput = document.getElementById('fileInput');
     const fileNameDisplay = document.getElementById('file-name');
 
@@ -617,43 +643,48 @@
     let heldMesh = null;
     let isSwinging = false;
     let swingProgress = 0;
-    const swingSpeed = 10.0;
-// --- ENEMY GLB TEMPLATE ---
-const baseURL = 'https://vavstorage.github.io/';
-const loader = new GLTFLoader();
-let enemyModelTemplate = null;
+    const swingSpeed = 12.0;
 
-loader.load(
-  baseURL + 'enemy2.glb',
-  (gltf) => {
-    const container = new THREE.Group();
-    const model = gltf.scene;
+    // --- ENEMY GLB TEMPLATE ---
+    const baseURL = 'https://vavstorage.github.io/';
+    const loader = new GLTFLoader();
+    let enemyModelTemplate = null;
 
-    model.rotation.x = Math.PI; 
+    loader.load(
+      baseURL + 'enemy.glb',
+      (gltf) => {
+        const container = new THREE.Group();
+        const model = gltf.scene;
+        model.rotation.x = Math.PI; 
 
-    let box = new THREE.Box3().setFromObject(model);
-    let size = box.getSize(new THREE.Vector3());
-    if (size.y > 0) {
-      const scale = 1.5 / size.y;
-      model.scale.set(scale, scale, scale);
-    }
+        let box = new THREE.Box3().setFromObject(model);
+        let size = box.getSize(new THREE.Vector3());
+        if (size.y > 0) {
+          const scale = 1.5 / size.y;
+          model.scale.set(scale, scale, scale);
+        }
 
-    box.setFromObject(model);
-    model.position.y = -box.min.y;
+        box.setFromObject(model);
+        model.position.y = -box.min.y;
 
-    container.add(model);
-    enemyModelTemplate = container;
-  },
-  undefined,
-  (err) => console.warn('Could not load enemy2.glb', err)
-);
-    // --- HEALTH, FUEL & DAMAGE LOGIC ---
+        container.add(model);
+        enemyModelTemplate = container;
+      },
+      undefined,
+      (err) => console.warn('Could not load enemy.glb', err)
+    );
+
+    // --- HEALTH, FUEL & ARROW HUD LOGIC ---
     function updateHealthHUD() {
       healthCountDisplay.textContent = Math.max(0, Math.round(playerHealth));
     }
 
     function updateFuelHUD() {
       fuelCountDisplay.textContent = Math.max(0, Math.round(playerFuel));
+    }
+
+    function updateArrowHUD() {
+      arrowCountDisplay.textContent = playerArrows;
     }
 
     function triggerDamageFlash() {
@@ -697,6 +728,13 @@ loader.load(
       return true;
     }
 
+    function addArrows(amount) {
+      playerArrows += amount;
+      updateArrowHUD();
+      updateHeldWeaponModel();
+      alert(`Added ${amount} Arrows! Total: ${playerArrows}`);
+    }
+
     function useSelectedItem() {
       const item = inventory[selectedSlot];
       if (!item) return;
@@ -709,19 +747,104 @@ loader.load(
           alert("Health is already full!");
         }
       } else if (item.name.includes('Fuel Tank')) {
-        if (refuelPlayer(100)) { // Refills 100 units
+        if (refuelPlayer(100)) { 
           inventory[selectedSlot] = null;
           updateInventoryUI();
         }
+      } else if (item.name.includes('Arrow Bundle')) {
+        addArrows(15);
+        inventory[selectedSlot] = null;
+        updateInventoryUI();
       }
+    }
+
+    // --- ARROW MESH CREATOR & PROJECTILES SYSTEM ---
+    const playerProjectiles = [];
+
+    function createArrowMesh() {
+      const arrowGroup = new THREE.Group();
+
+      // Shaft along Z
+      const shaftGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.65, 8);
+      const shaftMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.7 });
+      const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+      shaft.rotation.x = Math.PI / 2;
+      arrowGroup.add(shaft);
+
+      // Tip (Arrowhead facing forward +Z)
+      const tipGeo = new THREE.ConeGeometry(0.035, 0.12, 6);
+      const tipMat = new THREE.MeshStandardMaterial({ color: 0x808080, metalness: 0.8, roughness: 0.3 });
+      const tip = new THREE.Mesh(tipGeo, tipMat);
+      tip.rotation.x = Math.PI / 2;
+      tip.position.z = 0.38;
+      arrowGroup.add(tip);
+
+      // Fletching (Feathers at rear -Z)
+      const featherGeo = new THREE.BoxGeometry(0.004, 0.08, 0.12);
+      const featherMat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+      
+      const feather1 = new THREE.Mesh(featherGeo, featherMat);
+      feather1.position.z = -0.28;
+      arrowGroup.add(feather1);
+
+      const feather2 = new THREE.Mesh(featherGeo, featherMat);
+      feather2.rotation.z = Math.PI / 2;
+      feather2.position.z = -0.28;
+      arrowGroup.add(feather2);
+
+      return arrowGroup;
+    }
+
+    function fireArrow() {
+      if (playerArrows <= 0) {
+        alert("Out of arrows! Buy more in the shop or use an Arrow Bundle.");
+        return;
+      }
+
+      playerArrows--;
+      updateArrowHUD();
+      updateHeldWeaponModel();
+
+      const arrowMesh = createArrowMesh();
+      const camPos = camera.position.clone();
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+
+      // Spawn slightly in front of camera
+      arrowMesh.position.copy(camPos).add(camDir.clone().multiplyScalar(0.6));
+      
+      const speed = 42.0;
+      const velocity = camDir.clone().multiplyScalar(speed);
+
+      // Point arrow tip toward initial flight velocity
+      arrowMesh.lookAt(arrowMesh.position.clone().add(velocity));
+
+      scene.add(arrowMesh);
+      playerProjectiles.push({
+        mesh: arrowMesh,
+        velocity: velocity,
+        life: 5.0,
+        stuck: false
+      });
     }
 
     function triggerAttack() {
       const item = inventory[selectedSlot];
+
+      if (item && item.name.includes('Bow')) {
+        if (!isSwinging) {
+          isSwinging = true;
+          swingProgress = 0;
+          fireArrow();
+        }
+        return;
+      }
+
       if (!isSwinging) {
         isSwinging = true;
         swingProgress = 0;
 
+        // Hit Ground Enemies
         for (let i = enemies.length - 1; i >= 0; i--) {
           const enemy = enemies[i];
           const dist = camera.position.distanceTo(enemy.mesh.position);
@@ -732,13 +855,13 @@ loader.load(
             camera.getWorldDirection(camDir);
 
             if (camDir.dot(dirToEnemy) > 0.4) {
-             let damage = 10;
-             if (item) {
-               if (item.name.includes('Iron')) damage = 25;
-               else if (item.name.includes('Stone')) damage = 18;
-               else if (item.name.includes('Diamond')) damage = 35;
-               else if (item.name.includes('Car')) damage = 30;
-             }
+              let damage = 10;
+              if (item) {
+                if (item.name.includes('Iron')) damage = 25;
+                else if (item.name.includes('Stone')) damage = 18;
+                else if (item.name.includes('Diamond')) damage = 35;
+                else if (item.name.includes('Car')) damage = 30;
+              }
 
               enemy.health -= damage;
 
@@ -759,11 +882,52 @@ loader.load(
               enemy.mesh.position.add(knockback);
 
               if (enemy.health <= 0) {
-                // Tier 2 enemies drop double coins
-                const coinAmount = enemy.isStrong ? 20 : 10;
-                spawnCoinAt(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.3, 0)), coinAmount);
+                spawnCoinAt(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.3, 0)));
                 scene.remove(enemy.mesh);
                 enemies.splice(i, 1);
+              }
+            }
+          }
+        }
+
+        // Hit Enemy Helicopters (Air Targets)
+        for (let i = enemyHelicopters.length - 1; i >= 0; i--) {
+          const heli = enemyHelicopters[i];
+          const dist = camera.position.distanceTo(heli.mesh.position);
+
+          if (dist < 10.0) {
+            const dirToHeli = heli.mesh.position.clone().sub(camera.position).normalize();
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+
+            if (camDir.dot(dirToHeli) > 0.35) {
+              let damage = 20;
+              if (item) {
+                if (item.name.includes('Iron')) damage = 35;
+                else if (item.name.includes('Stone')) damage = 25;
+                else if (item.name.includes('Diamond')) damage = 50;
+              }
+
+              heli.health -= damage;
+
+              heli.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    if (mat && mat.color) {
+                      const orig = mat.color.getHex();
+                      mat.color.setHex(0xff0000);
+                      setTimeout(() => { if (mat && mat.color) mat.color.setHex(orig); }, 120);
+                    }
+                  });
+                }
+              });
+
+              if (heli.health <= 0) {
+                spawnCoinAt(heli.mesh.position.clone());
+                spawnCoinAt(heli.mesh.position.clone().add(new THREE.Vector3(0.5, 0, 0)));
+                scene.remove(heli.mesh);
+                enemyHelicopters.splice(i, 1);
               }
             }
           }
@@ -779,6 +943,51 @@ loader.load(
 
       const currentItem = inventory[selectedSlot];
       if (!currentItem) return;
+
+      if (currentItem.name.includes('Bow')) {
+        const bowGroup = new THREE.Group();
+
+        // Bow Arc
+        const arcGeo = new THREE.TorusGeometry(0.35, 0.02, 8, 16, Math.PI);
+        const arcMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.7 });
+        const arcMesh = new THREE.Mesh(arcGeo, arcMat);
+        arcMesh.rotation.y = Math.PI / 2;
+        bowGroup.add(arcMesh);
+
+        // Bowstring
+        const stringGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0.35, 0),
+          new THREE.Vector3(0, -0.35, 0)
+        ]);
+        const stringMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
+        const stringMesh = new THREE.Line(stringGeo, stringMat);
+        bowGroup.add(stringMesh);
+
+        // Nocked Arrow Preview
+        if (playerArrows > 0) {
+          const previewArrow = createArrowMesh();
+          previewArrow.scale.set(0.7, 0.7, 0.7);
+          previewArrow.rotation.y = Math.PI; // Face tip forward away from camera
+          previewArrow.position.set(0, 0, -0.05);
+          bowGroup.add(previewArrow);
+        }
+
+        bowGroup.rotation.y = Math.PI / 5;
+        viewmodelGroup.add(bowGroup);
+        heldMesh = bowGroup;
+        return;
+      }
+
+      if (currentItem.name.includes('Helicopter')) {
+        const heliData = createHelicopterMesh();
+        const heliMesh = heliData.mesh;
+        heliMesh.scale.set(0.25, 0.25, 0.25);
+        heliMesh.position.set(0.2, -0.25, -0.45);
+        heliMesh.rotation.y = -Math.PI / 4;
+        viewmodelGroup.add(heliMesh);
+        heldMesh = heliMesh;
+        return;
+      }
 
       const mesh = new THREE.Mesh(currentItem.geometry.clone(), currentItem.material.clone());
       mesh.scale.set(0.7, 0.7, 0.7);
@@ -802,6 +1011,7 @@ loader.load(
 
     // 3. Physics & Movement Setup
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+    let isSpacePressed = false;
     let canJump = false;
     let isGrounded = false;
 
@@ -828,63 +1038,199 @@ loader.load(
       }
     }
 
-    // --- ENEMY & MULTI-TIER SPAWNER SYSTEM ---
+    // --- PROCEDURAL HELICOPTER CREATOR ---
+    function createHelicopterMesh() {
+      const heliGroup = new THREE.Group();
+
+      // Fuselage Body
+      const bodyGeo = new THREE.BoxGeometry(1.2, 1.0, 2.4);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x223344, metalness: 0.7, roughness: 0.3 });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.y = 0.5;
+      heliGroup.add(body);
+
+      // Cockpit Window
+      const glassGeo = new THREE.BoxGeometry(1.0, 0.65, 0.8);
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.65, metalness: 0.9 });
+      const glass = new THREE.Mesh(glassGeo, glassMat);
+      glass.position.set(0, 0.65, -0.9);
+      heliGroup.add(glass);
+
+      // Tail Boom
+      const tailGeo = new THREE.BoxGeometry(0.3, 0.3, 2.2);
+      const tailMat = new THREE.MeshStandardMaterial({ color: 0x111c24 });
+      const tail = new THREE.Mesh(tailGeo, tailMat);
+      tail.position.set(0, 0.6, 2.0);
+      heliGroup.add(tail);
+
+      // Main Top Rotor
+      const mainRotorGroup = new THREE.Group();
+      mainRotorGroup.name = 'mainRotor';
+      mainRotorGroup.position.set(0, 1.25, 0);
+
+      const hubGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.25, 8);
+      const hubMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+      const hub = new THREE.Mesh(hubGeo, hubMat);
+      mainRotorGroup.add(hub);
+
+      const bladeGeo = new THREE.BoxGeometry(4.2, 0.04, 0.22);
+      const bladeMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8 });
+      const blade1 = new THREE.Mesh(bladeGeo, bladeMat);
+      const blade2 = new THREE.Mesh(bladeGeo, bladeMat);
+      blade2.rotation.y = Math.PI / 2;
+      mainRotorGroup.add(blade1, blade2);
+
+      heliGroup.add(mainRotorGroup);
+
+      // Tail Rotor
+      const tailRotorGroup = new THREE.Group();
+      tailRotorGroup.name = 'tailRotor';
+      tailRotorGroup.position.set(0.2, 0.75, 3.0);
+      const tailBladeGeo = new THREE.BoxGeometry(0.04, 0.8, 0.1);
+      const tailBlade = new THREE.Mesh(tailBladeGeo, bladeMat);
+      tailRotorGroup.add(tailBlade);
+      heliGroup.add(tailRotorGroup);
+
+      // Landing Gear Skids
+      const skidMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.8 });
+      const skid1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 2.2), skidMat);
+      skid1.position.set(-0.6, -0.15, 0);
+      const skid2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 2.2), skidMat);
+      skid2.position.set(0.6, -0.15, 0);
+      heliGroup.add(skid1, skid2);
+
+      // Connecting Legs
+      const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), skidMat);
+      leg1.position.set(-0.6, 0.1, 0.5);
+      const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), skidMat);
+      leg2.position.set(0.6, 0.1, 0.5);
+      const leg3 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), skidMat);
+      leg3.position.set(-0.6, 0.1, -0.5);
+      const leg4 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), skidMat);
+      leg4.position.set(0.6, 0.1, -0.5);
+      heliGroup.add(leg1, leg2, leg3, leg4);
+
+      return { mesh: heliGroup, mainRotor: mainRotorGroup, tailRotor: tailRotorGroup };
+    }
+
+    // --- AI SKY PATROL HELICOPTERS SYSTEM ---
+    const enemyHelicopters = [];
+    const heliProjectiles = [];
+    const maxHelicoptersInSky = 2;
+    const heliSpawnIntervalMs = 12000;
+    const HELI_PATROL_RADIUS = 10.0;
+
+    function getSpawnerPosition() {
+      if (spawnerMeshes.length > 0) {
+        const randomSpawner = spawnerMeshes[Math.floor(Math.random() * spawnerMeshes.length)];
+        const box = new THREE.Box3().setFromObject(randomSpawner);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        return center;
+      }
+      return new THREE.Vector3(0, 0, 0);
+    }
+
+    function getRandomPointInRadius(centerPos, radius) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * radius;
+      return new THREE.Vector3(
+        centerPos.x + Math.cos(angle) * distance,
+        centerPos.y,
+        centerPos.z + Math.sin(angle) * distance
+      );
+    }
+
+    function spawnEnemyHelicopter() {
+      if (enemyHelicopters.length >= maxHelicoptersInSky) return;
+
+      const spawnerPos = getSpawnerPosition();
+      const spawnPoint = getRandomPointInRadius(spawnerPos, HELI_PATROL_RADIUS);
+      const spawnAltitude = Math.max(spawnerPos.y + 14.0, 14.0) + Math.random() * 6.0;
+
+      const heliObj = createHelicopterMesh();
+      heliObj.mesh.position.set(spawnPoint.x, spawnAltitude, spawnPoint.z);
+      scene.add(heliObj.mesh);
+
+      const firstPatrolPoint = getRandomPointInRadius(spawnerPos, HELI_PATROL_RADIUS);
+
+      enemyHelicopters.push({
+        mesh: heliObj.mesh,
+        mainRotor: heliObj.mainRotor,
+        tailRotor: heliObj.tailRotor,
+        health: 75,
+        maxHealth: 75,
+        speed: 6.5,
+        spawnerCenter: spawnerPos.clone(),
+        targetWaypoint: new THREE.Vector3(firstPatrolPoint.x, spawnAltitude, firstPatrolPoint.z),
+        lastShootTime: 0,
+        shootCooldown: 1500,
+        altitude: spawnAltitude
+      });
+    }
+
+    setInterval(spawnEnemyHelicopter, heliSpawnIntervalMs);
+
+    function heliShootLaser(heli, targetPos) {
+      const laserGeo = new THREE.SphereGeometry(0.15, 8, 8);
+      const laserMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+      const laserMesh = new THREE.Mesh(laserGeo, laserMat);
+
+      const startPos = heli.mesh.position.clone().add(new THREE.Vector3(0, -0.6, 0));
+      laserMesh.position.copy(startPos);
+
+      const aimSpread = new THREE.Vector3((Math.random() - 0.5) * 1.5, -0.3, (Math.random() - 0.5) * 1.5);
+      const aimTarget = targetPos.clone().add(aimSpread);
+      const fireDir = aimTarget.sub(startPos).normalize();
+
+      scene.add(laserMesh);
+      heliProjectiles.push({
+        mesh: laserMesh,
+        direction: fireDir,
+        speed: 24,
+        life: 2.5
+      });
+    }
+
+    // --- ENEMY & SPAWNER SYSTEM ---
     const enemies = [];
-    const maxEnemiesOnIsland = 4;
+    const maxEnemiesOnIsland = 2;
     const enemySpawnIntervalMs = 10000;
-    
-    let spawnerMeshes = [];   // Standard Spawner Array (30 HP Enemies)
-    let spawner2Meshes = [];  // Tier 2 Spawner Array (80 HP Enemies)
+    let spawnerMeshes = [];
 
     function clearEnemies() {
       for (let i = enemies.length - 1; i >= 0; i--) scene.remove(enemies[i].mesh);
       enemies.length = 0;
+      for (let i = enemyHelicopters.length - 1; i >= 0; i--) scene.remove(enemyHelicopters[i].mesh);
+      enemyHelicopters.length = 0;
     }
 
     function detectSpawnersInModel(gltfScene) {
       spawnerMeshes = [];
-      spawner2Meshes = [];
-
       gltfScene.traverse((child) => {
-        if (child.name) {
-          const nameLower = child.name.toLowerCase();
-
-          // Differentiate between spawner2 and standard spawner
-          if (nameLower.includes('spawner2')) {
-            if (child.isMesh) {
-              if (!spawner2Meshes.includes(child)) spawner2Meshes.push(child);
-            } else {
-              child.traverse((sub) => {
-                if (sub.isMesh && !spawner2Meshes.includes(sub)) spawner2Meshes.push(sub);
-              });
-            }
-          } else if (nameLower.includes('spawner')) {
-            if (child.isMesh) {
-              if (!spawnerMeshes.includes(child)) spawnerMeshes.push(child);
-            } else {
-              child.traverse((sub) => {
-                if (sub.isMesh && !spawnerMeshes.includes(sub)) spawnerMeshes.push(sub);
-              });
-            }
+        if (child.name && child.name.toLowerCase().includes('spawner')) {
+          if (child.isMesh) {
+            if (!spawnerMeshes.includes(child)) spawnerMeshes.push(child);
+          } else {
+            child.traverse((sub) => {
+              if (sub.isMesh && !spawnerMeshes.includes(sub)) {
+                spawnerMeshes.push(sub);
+              }
+            });
           }
         }
       });
     }
 
-    function spawnEnemy(isStrong = false) {
-      const targetSpawners = isStrong ? spawner2Meshes : spawnerMeshes;
-      const hasSpawners = targetSpawners.length > 0;
-
-      // Tier 2 enemies require explicitly defined spawner2 meshes
-      if (isStrong && !hasSpawners) return;
-
-      if ((!hasSpawners && !isStrong && !currentLoadedFileName.toLowerCase().includes('island')) || enemies.length >= maxEnemiesOnIsland) return;
+    function spawnEnemy() {
+      const hasSpawners = spawnerMeshes.length > 0;
+      if ((!hasSpawners && !currentLoadedFileName.toLowerCase().includes('island')) || enemies.length >= maxEnemiesOnIsland) return;
 
       let spawnX = 0, spawnZ = 0, spawnY = 0.8;
       let targetSpawner = null;
 
       if (hasSpawners) {
-        targetSpawner = targetSpawners[Math.floor(Math.random() * targetSpawners.length)];
+        targetSpawner = spawnerMeshes[Math.floor(Math.random() * spawnerMeshes.length)];
         const box = new THREE.Box3().setFromObject(targetSpawner);
         
         const minX = Math.min(box.min.x, box.max.x);
@@ -918,8 +1264,6 @@ loader.load(
         }
       }
 
-      const baseHealth = isStrong ? 80 : 30;
-
       let enemyGroup;
       if (enemyModelTemplate) {
         enemyGroup = enemyModelTemplate.clone(true);
@@ -928,38 +1272,23 @@ loader.load(
             child.material = Array.isArray(child.material)
               ? child.material.map(m => m.clone())
               : child.material.clone();
-
-            // Give Tier 2 Enemies a distinct purple tint
-            if (isStrong) {
-              const tintMat = (m) => {
-                if (m && m.color) m.color.setHex(0x8800ff);
-              };
-              if (Array.isArray(child.material)) child.material.forEach(tintMat);
-              else tintMat(child.material);
-            }
           }
         });
-
-        if (isStrong) {
-          enemyGroup.scale.multiplyScalar(1.3); // Scale up tier 2 enemies
-        }
-
         enemyGroup.position.set(spawnX, spawnY, spawnZ);
       } else {
         enemyGroup = new THREE.Group();
-        const bodyColor = isStrong ? 0x8800ff : 0xd93838;
         const bodyMesh = new THREE.Mesh(
-          new THREE.CapsuleGeometry(isStrong ? 0.45 : 0.35, isStrong ? 1.0 : 0.8, 4, 8),
-          new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.4 })
+          new THREE.CapsuleGeometry(0.35, 0.8, 4, 8),
+          new THREE.MeshStandardMaterial({ color: 0xd93838, roughness: 0.4 })
         );
-        bodyMesh.position.y = isStrong ? 0.95 : 0.75;
+        bodyMesh.position.y = 0.75;
         enemyGroup.add(bodyMesh);
 
         const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
         const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), eyeMat);
-        leftEye.position.set(-0.15, isStrong ? 1.2 : 1.0, -0.3);
+        leftEye.position.set(-0.15, 1.0, -0.3);
         const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), eyeMat);
-        rightEye.position.set(0.15, isStrong ? 1.2 : 1.0, -0.3);
+        rightEye.position.set(0.15, 1.0, -0.3);
         enemyGroup.add(leftEye, rightEye);
 
         enemyGroup.position.set(spawnX, spawnY, spawnZ);
@@ -968,34 +1297,27 @@ loader.load(
       scene.add(enemyGroup);
       enemies.push({
         mesh: enemyGroup,
-        health: baseHealth,
-        maxHealth: baseHealth,
-        speed: isStrong ? 2.8 : 2.5,
+        health: 30,
+        maxHealth: 30,
+        speed: 2.5,
         lastAttackTime: 0,
         animOffset: Math.random() * 10,
         baseY: spawnY,
-        spawnerMesh: targetSpawner,
-        isStrong: isStrong
+        spawnerMesh: targetSpawner
       });
     }
 
-    function spawnAllEnemies() {
-      spawnEnemy(false); // Normal spawner tick
-      spawnEnemy(true);  // Spawner2 tick
-    }
-
-    setInterval(spawnAllEnemies, enemySpawnIntervalMs);
+    setInterval(spawnEnemy, enemySpawnIntervalMs);
 
     // --- INVENTORY & ITEMS DATA ---
     let playerCoins = 10;
     
-    // Inventory: 5 Hotbar Slots (0-4) + 15 Inner Storage Slots (5-19) = 20 Total Slots
     const HOTBAR_SLOTS = 5;
     const INNER_SLOTS = 15;
     const TOTAL_SLOTS = HOTBAR_SLOTS + INNER_SLOTS;
     const inventory = new Array(TOTAL_SLOTS).fill(null);
-    let selectedSlot = 0; // Active Hotbar Index (0..4)
-    let selectedSwapSourceIndex = null; // Used for clicking & swapping items in GUI
+    let selectedSlot = 0; 
+    let selectedSwapSourceIndex = null; 
 
     const itemsInWorld = [];
     const interactableObjects = [];
@@ -1013,6 +1335,24 @@ loader.load(
     }
 
     const itemCatalog = {
+      bow: {
+        name: 'Hunting Bow',
+        icon: '🏹',
+        geometry: new THREE.TorusGeometry(0.35, 0.02, 8, 16, Math.PI),
+        material: new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.7 })
+      },
+      arrows: {
+        name: 'Arrow Bundle',
+        icon: '📦',
+        geometry: new THREE.CylinderGeometry(0.08, 0.08, 0.4, 8),
+        material: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.6 })
+      },
+      helicopter: {
+        name: 'Personal Helicopter',
+        icon: '🚁',
+        geometry: new THREE.BoxGeometry(0.4, 0.3, 0.6),
+        material: new THREE.MeshStandardMaterial({ color: 0x007bff, metalness: 0.8, roughness: 0.2 })
+      },
       car: {
         name: 'Sports Car',
         icon: '🏎️',
@@ -1051,18 +1391,19 @@ loader.load(
       }
     };
 
-    function spawnWorldItem(name, icon, geometry, material, position, isCoinStack = false, coinVal = 10) {
+    function spawnWorldItem(name, icon, geometry, material, position, isCoinStack = false) {
       const mesh = new THREE.Mesh(geometry, material);
       mesh.position.copy(position);
       mesh.userData = {
         isItem: true,
         isCoin: isCoinStack,
-        coinValue: coinVal,
         name: name,
         icon: icon,
         geometry: geometry,
         material: material,
         baseY: position.y,
+        velocityY: 0,
+        hasGravity: true,
         bobOffset: Math.random() * Math.PI * 2
       };
       scene.add(mesh);
@@ -1071,11 +1412,12 @@ loader.load(
       return mesh;
     }
 
-    function spawnCoinAt(position, amount = 10) {
+    function spawnCoinAt(position) {
       const coinGeom = new THREE.CylinderGeometry(0.22, 0.22, 0.06, 16);
       const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
-      const coinMesh = spawnWorldItem(`Coins (+${amount})`, '🪙', coinGeom, coinMat, position, true, amount);
+      const coinMesh = spawnWorldItem('Coins (+10)', '🪙', coinGeom, coinMat, position, true);
       coinMesh.rotation.x = Math.PI / 2;
+      coinMesh.userData.velocityY = 3.5 + Math.random() * 2.0;
       return coinMesh;
     }
 
@@ -1088,18 +1430,18 @@ loader.load(
       const dist = 2.0 + Math.random() * radius;
       const x = Math.cos(angle) * dist;
       const z = Math.sin(angle) * dist;
-      let spawnY = 0.35;
+      let spawnY = 3.5;
 
       if (loadedModel) {
         const floorRay = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
         const hits = floorRay.intersectObject(loadedModel, true);
-        if (hits.length > 0) spawnY = hits[0].point.y + 0.35;
+        if (hits.length > 0) spawnY = hits[0].point.y + 3.5;
       }
 
-      spawnCoinAt(new THREE.Vector3(x, spawnY, z), 10);
+      spawnCoinAt(new THREE.Vector3(x, spawnY, z));
     }
 
-    spawnCoinAt(new THREE.Vector3(0, 0.35, -3.5), 10);
+    spawnCoinAt(new THREE.Vector3(0, 2.5, -3.5));
     setInterval(spawnRandomCoin, 15000);
 
     function createFallbackShopStand(position) {
@@ -1285,7 +1627,7 @@ loader.load(
 
     function pickupItem(itemMesh) {
       if (itemMesh.userData.isCoin) {
-        playerCoins += (itemMesh.userData.coinValue || 10);
+        playerCoins += 10;
         updateCoinHUD();
       } else {
         const emptyIndex = findFirstEmptySlot();
@@ -1338,9 +1680,11 @@ loader.load(
       camera.getWorldDirection(dir);
 
       dropPos.add(dir.multiplyScalar(1.5));
-      dropPos.y = Math.max(dropPos.y, 0.3);
+      dropPos.y = Math.max(dropPos.y, 0.5);
 
-      spawnWorldItem(itemData.name, itemData.icon, itemData.geometry, itemData.material, dropPos);
+      const droppedItem = spawnWorldItem(itemData.name, itemData.icon, itemData.geometry, itemData.material, dropPos);
+      droppedItem.userData.velocityY = 2.0;
+
       inventory[selectedSlot] = null;
       updateInventoryUI();
     }
@@ -1393,6 +1737,13 @@ loader.load(
           return;
         }
 
+        if (itemKey === 'arrows') {
+          playerCoins -= price;
+          updateCoinHUD();
+          addArrows(15);
+          return;
+        }
+
         const template = itemCatalog[itemKey];
         if (template && addItemToInventory(template)) {
           playerCoins -= price;
@@ -1415,6 +1766,7 @@ loader.load(
         coins: playerCoins,
         health: playerHealth,
         fuel: playerFuel,
+        arrows: playerArrows,
         map: currentLoadedFileName,
         inventory: inventory.map(item => item ? item.name : null),
         position: {
@@ -1440,9 +1792,11 @@ loader.load(
         playerCoins = saveData.coins || 10;
         playerHealth = saveData.health || 100;
         playerFuel = (saveData.fuel !== undefined) ? saveData.fuel : 200;
+        playerArrows = (saveData.arrows !== undefined) ? saveData.arrows : 20;
         updateCoinHUD();
         updateHealthHUD();
         updateFuelHUD();
+        updateArrowHUD();
 
         if (Array.isArray(saveData.inventory)) {
           saveData.inventory.forEach((itemName, idx) => {
@@ -1497,7 +1851,11 @@ loader.load(
         case 'KeyA': case 'ArrowLeft': moveLeft = true; break;
         case 'KeyS': case 'ArrowDown': moveBackward = true; break;
         case 'KeyD': case 'ArrowRight': moveRight = true; break;
-        case 'Space': performJump(); break;
+        case 'Space':
+          isSpacePressed = true;
+          const activeItem = inventory[selectedSlot];
+          if (!activeItem || !activeItem.name.includes('Helicopter')) performJump();
+          break;
         case 'KeyE': handleInteraction(); break;
         case 'KeyI': toggleInventory(); break;
         case 'KeyF': useSelectedItem(); break;
@@ -1516,6 +1874,7 @@ loader.load(
         case 'KeyA': case 'ArrowLeft': moveLeft = false; break;
         case 'KeyS': case 'ArrowDown': moveBackward = false; break;
         case 'KeyD': case 'ArrowRight': moveRight = false; break;
+        case 'Space': isSpacePressed = false; break;
       }
     };
 
@@ -1656,12 +2015,109 @@ loader.load(
       if (controls.isLocked && !isShopOpen && !isInventoryOpen) {
         const delta = Math.min((time - prevTime) / 1000, 0.1);
 
+        const currentItem = inventory[selectedSlot];
+        const isDrivingCar = currentItem && currentItem.name.includes('Car');
+        const isFlyingHelicopter = currentItem && currentItem.name.includes('Helicopter');
+        const isMoving = (moveForward || moveBackward || moveLeft || moveRight);
+
+        // --- VIEWMODEL ATTACK / SWING RECOIL ANIMATION ---
+        if (isSwinging) {
+          swingProgress += delta * swingSpeed;
+          const swingAngle = Math.sin(swingProgress) * 0.35;
+          viewmodelGroup.position.z = viewmodelBasePos.z + Math.sin(swingProgress) * 0.08;
+          viewmodelGroup.rotation.x = viewmodelBaseRot.x - swingAngle;
+
+          if (swingProgress >= Math.PI) {
+            isSwinging = false;
+            swingProgress = 0;
+            viewmodelGroup.position.copy(viewmodelBasePos);
+            viewmodelGroup.rotation.copy(viewmodelBaseRot);
+          }
+        }
+
+        // --- ITEM & COIN GRAVITY PHYSICS ---
+        for (let i = 0; i < itemsInWorld.length; i++) {
+          const item = itemsInWorld[i];
+          if (item.userData.hasGravity) {
+            if (item.userData.velocityY === undefined) item.userData.velocityY = 0;
+
+            item.userData.velocityY -= 18.0 * delta;
+            item.position.y += item.userData.velocityY * delta;
+
+            let groundY = 0.2;
+            if (loadedModel) {
+              const ray = new THREE.Raycaster(
+                new THREE.Vector3(item.position.x, item.position.y + 1.0, item.position.z),
+                new THREE.Vector3(0, -1, 0)
+              );
+              const hits = ray.intersectObject(loadedModel, true);
+              if (hits.length > 0) groundY = hits[0].point.y + 0.2;
+            }
+
+            if (item.position.y <= groundY) {
+              item.position.y = groundY;
+              item.userData.velocityY = 0;
+              item.userData.hasGravity = false;
+            }
+          }
+
+          if (item.userData.isCoin) {
+            item.rotation.z += delta * 3.0;
+          } else {
+            item.rotation.y += delta * 1.5;
+          }
+        }
+
+        // --- HELICOPTER & VEHICLE MOVEMENT LOGIC ---
+        let currentMoveSpeed = moveSpeed;
+
+        if (isFlyingHelicopter) {
+          if (playerFuel > 0) {
+            currentMoveSpeed = moveSpeed * 2.5;
+
+            if (isSpacePressed) {
+              velocity.y = Math.min(velocity.y + 35.0 * delta, 12.0);
+              playerFuel = Math.max(0, playerFuel - 3.0 * delta);
+              updateFuelHUD();
+            } else {
+              if (velocity.y < -3.0) velocity.y = -3.0;
+            }
+
+            if (isMoving) {
+              playerFuel = Math.max(0, playerFuel - 1.5 * delta);
+              updateFuelHUD();
+            }
+          } else {
+            currentMoveSpeed = moveSpeed;
+          }
+        } else if (isDrivingCar) {
+          if (playerFuel > 0) {
+            currentMoveSpeed = moveSpeed * 3.0;
+            if (isMoving) {
+              playerFuel = Math.max(0, playerFuel - 2.0 * delta); 
+              updateFuelHUD();
+            }
+          } else {
+            currentMoveSpeed = moveSpeed; 
+          }
+        }
+
+        // --- HELD HELICOPTER ROTOR ANIMATION ---
+        if (heldMesh && isFlyingHelicopter) {
+          heldMesh.traverse((child) => {
+            if (child.name === 'mainRotor') child.rotation.y += delta * 30.0;
+            if (child.name === 'tailRotor') child.rotation.x += delta * 35.0;
+          });
+        }
+
         const damping = isGrounded ? groundDamping : airDamping;
         velocity.x -= velocity.x * damping * delta;
         velocity.z -= velocity.z * damping * delta;
 
-        if (velocity.y < 0) velocity.y -= gravity * fallMultiplier * delta;
-        else velocity.y -= gravity * delta;
+        if (!isFlyingHelicopter) {
+          if (velocity.y < 0) velocity.y -= gravity * fallMultiplier * delta;
+          else velocity.y -= gravity * delta;
+        }
 
         velocity.y = Math.max(velocity.y, terminalVelocity);
 
@@ -1669,24 +2125,6 @@ loader.load(
         direction.x = Number(moveRight) - Number(moveLeft);
         direction.normalize();
 
-        const currentItem = inventory[selectedSlot];
-        const isDrivingCar = currentItem && currentItem.name.includes('Car');
-        const isMoving = (moveForward || moveBackward || moveLeft || moveRight);
-
-        let currentMoveSpeed = moveSpeed;
-
-        if (isDrivingCar) {
-          if (playerFuel > 0) {
-            currentMoveSpeed = moveSpeed * 3.0;
-            if (isMoving) {
-              playerFuel = Math.max(0, playerFuel - 2.0 * delta); // Burn fuel 3x slower
-              updateFuelHUD();
-            }
-          } else {
-            currentMoveSpeed = moveSpeed; // Out of fuel! Regular speed
-          }
-        }
-        
         const accel = isGrounded ? currentMoveSpeed : currentMoveSpeed * 0.3;
         if (moveForward || moveBackward) velocity.z -= direction.z * accel * delta * 10;
         if (moveLeft || moveRight) velocity.x -= direction.x * accel * delta * 10;
@@ -1732,7 +2170,6 @@ loader.load(
             }
           }
         } else {
-          // Fallback ground floor while GLB model is loading
           if (controls.getObject().position.y <= playerHeight) {
             controls.getObject().position.y = playerHeight;
             velocity.y = 0;
@@ -1741,7 +2178,6 @@ loader.load(
           }
         }
 
-        // Void Fall Respawn
         if (controls.getObject().position.y < -30) respawnPlayer();
 
         const isMovingGrounded = isMoving && isGrounded;
@@ -1750,89 +2186,217 @@ loader.load(
           walkAnimTimer += delta * 14;
         }
 
-        // ENEMY AI & WALKING ANIMATIONS
-        if (enemies.length > 0) {
-          const playerPos = controls.getObject().position;
+        // --- ARROW PROJECTILES PHYSICS & COLLISION ---
+        for (let i = playerProjectiles.length - 1; i >= 0; i--) {
+          const proj = playerProjectiles[i];
 
-          enemies.forEach((enemy) => {
-            const dist = enemy.mesh.position.distanceTo(playerPos);
-
-            if (dist > 1.2 && dist < 22) {
-              const dir = playerPos.clone().sub(enemy.mesh.position);
-              dir.y = 0;
-              dir.normalize();
-
-              const step = dir.multiplyScalar(enemy.speed * delta);
-
-              if (enemy.spawnerMesh) {
-                const box = new THREE.Box3().setFromObject(enemy.spawnerMesh);
-
-                const stepX = new THREE.Vector3(step.x, 0, 0);
-                const testPosX = enemy.mesh.position.clone().add(stepX);
-                const rayX = new THREE.Raycaster(
-                  new THREE.Vector3(testPosX.x, box.max.y + 2, testPosX.z),
-                  new THREE.Vector3(0, -1, 0)
-                );
-                const hitsX = rayX.intersectObject(enemy.spawnerMesh, true);
-                if (hitsX.length > 0) {
-                  enemy.mesh.position.x = testPosX.x;
-                  enemy.baseY = hitsX[0].point.y;
-                }
-
-                const stepZ = new THREE.Vector3(0, 0, step.z);
-                const testPosZ = enemy.mesh.position.clone().add(stepZ);
-                const rayZ = new THREE.Raycaster(
-                  new THREE.Vector3(testPosZ.x, box.max.y + 2, testPosZ.z),
-                  new THREE.Vector3(0, -1, 0)
-                );
-                const hitsZ = rayZ.intersectObject(enemy.spawnerMesh, true);
-                if (hitsZ.length > 0) {
-                  enemy.mesh.position.z = testPosZ.z;
-                  enemy.baseY = hitsZ[0].point.y;
-                }
-              } else {
-                enemy.mesh.position.add(step);
-                if (loadedModel) {
-                  const floorRay = new THREE.Raycaster(
-                    new THREE.Vector3(enemy.mesh.position.x, enemy.mesh.position.y + 10, enemy.mesh.position.z),
-                    new THREE.Vector3(0, -1, 0)
-                  );
-                  const hits = floorRay.intersectObject(loadedModel, true);
-                  if (hits.length > 0) enemy.baseY = hits[0].point.y;
-                }
-              }
-
-              enemy.mesh.lookAt(playerPos.x, enemy.mesh.position.y, playerPos.z);
-
-              const enemyWalkCycle = (time * 0.01) + enemy.animOffset;
-              enemy.mesh.rotation.z = Math.sin(enemyWalkCycle) * 0.12; 
-
-              const bounce = Math.abs(Math.sin(enemyWalkCycle * 2)) * 0.08;
-              enemy.mesh.position.y = enemy.baseY + bounce;
+          if (proj.stuck) {
+            proj.life -= delta;
+            if (proj.life <= 0) {
+              scene.remove(proj.mesh);
+              playerProjectiles.splice(i, 1);
             }
-
-            if (dist < 1.6 && time - enemy.lastAttackTime > 1200) {
-              enemy.lastAttackTime = time;
-              takeDamage(enemy.isStrong ? 25 : 15);
-            }
-          });
-        }
-
-        checkPortalCollisions();
-
-        // Raycast Interactions
-        raycasterInteract.setFromCamera(new THREE.Vector2(0, 0), camera);
-        const hits = raycasterInteract.intersectObjects(interactableObjects, true);
-
-        if (hits.length > 0 && hits[0].distance < 3.5) {
-          let hitObj = hits[0].object;
-          while (hitObj.parent && hitObj.parent !== scene && !hitObj.userData.isItem && !hitObj.userData.isShop && !hitObj.userData.isGasStation) {
-            hitObj = hitObj.parent;
+            continue;
           }
 
-          if (hitObj.userData.isShop || hitObj.userData.isItem || hitObj.userData.isGasStation) {
-            hoveredObject = hitObj;
-            promptItemName.textContent = hitObj.userData.name || 'Interactive Object';
+          proj.life -= delta;
+          if (proj.life <= 0) {
+            scene.remove(proj.mesh);
+            playerProjectiles.splice(i, 1);
+            continue;
+          }
+
+          // Apply Gravity Arc
+          proj.velocity.y -= 12.0 * delta;
+
+          const oldArrowPos = proj.mesh.position.clone();
+          const moveStep = proj.velocity.clone().multiplyScalar(delta);
+          proj.mesh.position.add(moveStep);
+
+          // Point arrow tip toward trajectory
+          const travelTarget = proj.mesh.position.clone().add(proj.velocity);
+          proj.mesh.lookAt(travelTarget);
+
+          let hitSomething = false;
+
+          // Check hit vs Ground Enemies
+          for (let e = enemies.length - 1; e >= 0; e--) {
+            const enemy = enemies[e];
+            const dist = proj.mesh.position.distanceTo(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.75, 0)));
+
+            if (dist < 1.0) {
+              enemy.health -= 35;
+              hitSomething = true;
+
+              enemy.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    if (mat && mat.color) {
+                      const orig = mat.color.getHex();
+                      mat.color.setHex(0xffffff);
+                      setTimeout(() => { if (mat && mat.color) mat.color.setHex(orig); }, 120);
+                    }
+                  });
+                }
+              });
+
+              if (enemy.health <= 0) {
+                spawnCoinAt(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.3, 0)));
+                scene.remove(enemy.mesh);
+                enemies.splice(e, 1);
+              }
+              break;
+            }
+          }
+
+          // Check hit vs Enemy Helicopters
+          if (!hitSomething) {
+            for (let h = enemyHelicopters.length - 1; h >= 0; h--) {
+              const heli = enemyHelicopters[h];
+              const dist = proj.mesh.position.distanceTo(heli.mesh.position);
+
+              if (dist < 2.2) {
+                heli.health -= 45;
+                hitSomething = true;
+
+                heli.mesh.traverse((child) => {
+                  if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach((mat) => {
+                      if (mat && mat.color) {
+                        const orig = mat.color.getHex();
+                        mat.color.setHex(0xff0000);
+                        setTimeout(() => { if (mat && mat.color) mat.color.setHex(orig); }, 120);
+                      }
+                    });
+                  }
+                });
+
+                if (heli.health <= 0) {
+                  spawnCoinAt(heli.mesh.position.clone());
+                  spawnCoinAt(heli.mesh.position.clone().add(new THREE.Vector3(0.5, 0, 0)));
+                  scene.remove(heli.mesh);
+                  enemyHelicopters.splice(h, 1);
+                }
+                break;
+              }
+            }
+          }
+
+          // Check hit vs Map Geometry (Sticks into walls/ground)
+          if (!hitSomething && loadedModel) {
+            const stepLen = moveStep.length();
+            const ray = new THREE.Raycaster(oldArrowPos, moveStep.clone().normalize(), 0, stepLen + 0.1);
+            const hits = ray.intersectObject(loadedModel, true);
+
+            if (hits.length > 0) {
+              proj.stuck = true;
+              proj.life = 6.0; // Arrow stays stuck for 6s
+              proj.mesh.position.copy(hits[0].point);
+              hitSomething = true;
+            }
+          }
+
+          if (hitSomething && !proj.stuck) {
+            scene.remove(proj.mesh);
+            playerProjectiles.splice(i, 1);
+          }
+        }
+
+        // --- ENEMY HELICOPTER SKY PATROL & AI LOGIC ---
+        const playerPos = controls.getObject().position;
+
+        enemyHelicopters.forEach((heli) => {
+          heli.mainRotor.rotation.y += delta * 25.0;
+          heli.tailRotor.rotation.x += delta * 30.0;
+
+          const distToPlayer = heli.mesh.position.distanceTo(playerPos);
+          let targetDest = heli.targetWaypoint;
+
+          if (distToPlayer < 35.0) {
+            targetDest = new THREE.Vector3(playerPos.x, heli.altitude, playerPos.z);
+
+            if (time - heli.lastShootTime > heli.shootCooldown) {
+              heli.lastShootTime = time;
+              heliShootLaser(heli, playerPos);
+            }
+          } else {
+            if (heli.mesh.position.distanceTo(heli.targetWaypoint) < 3.0) {
+              const nextPoint = getRandomPointInRadius(heli.spawnerCenter, HELI_PATROL_RADIUS);
+              heli.targetWaypoint.set(nextPoint.x, heli.altitude, nextPoint.z);
+            }
+          }
+
+          const moveDir = targetDest.clone().sub(heli.mesh.position);
+          moveDir.y = 0; 
+
+          if (moveDir.length() > 0.5) {
+            moveDir.normalize();
+            heli.mesh.position.addScaledVector(moveDir, heli.speed * delta);
+
+            const lookTarget = heli.mesh.position.clone().add(moveDir);
+            heli.mesh.lookAt(lookTarget);
+            heli.mesh.rotation.x = 0.12; 
+          } else {
+            heli.mesh.rotation.x = THREE.MathUtils.lerp(heli.mesh.rotation.x, 0, 0.05);
+          }
+        });
+
+        // --- HELICOPTER PROJECTILES UPDATE ---
+        for (let i = heliProjectiles.length - 1; i >= 0; i--) {
+          const proj = heliProjectiles[i];
+          proj.life -= delta;
+          proj.mesh.position.addScaledVector(proj.direction, proj.speed * delta);
+
+          const projDist = proj.mesh.position.distanceTo(playerPos);
+          if (projDist < 0.9) {
+            takeDamage(12);
+            scene.remove(proj.mesh);
+            heliProjectiles.splice(i, 1);
+            continue;
+          }
+
+          if (proj.life <= 0) {
+            scene.remove(proj.mesh);
+            heliProjectiles.splice(i, 1);
+          }
+        }
+
+        // --- GROUND ENEMY AI & ATTACK LOGIC ---
+        for (let i = 0; i < enemies.length; i++) {
+          const enemy = enemies[i];
+          const distToPlayer = enemy.mesh.position.distanceTo(playerPos);
+
+          if (distToPlayer < 20.0) {
+            const moveDir = playerPos.clone().sub(enemy.mesh.position);
+            moveDir.y = 0;
+            if (moveDir.length() > 0.8) {
+              moveDir.normalize();
+              enemy.mesh.position.addScaledVector(moveDir, enemy.speed * delta);
+              enemy.mesh.lookAt(playerPos.x, enemy.mesh.position.y, playerPos.z);
+            }
+
+            if (distToPlayer < 1.5 && time - enemy.lastAttackTime > 1200) {
+              enemy.lastAttackTime = time;
+              takeDamage(15);
+            }
+          }
+        }
+
+        // --- INTERACTION HOVER DETECTION ---
+        raycasterInteract.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const intersects = raycasterInteract.intersectObjects(interactableObjects, true);
+
+        if (intersects.length > 0 && intersects[0].distance < 3.5) {
+          let topObj = intersects[0].object;
+          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem) {
+            topObj = topObj.parent;
+          }
+
+          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem) {
+            hoveredObject = topObj;
+            promptItemName.textContent = topObj.userData.name || 'Item';
             interactionPrompt.style.display = 'block';
           } else {
             hoveredObject = null;
@@ -1843,63 +2407,20 @@ loader.load(
           interactionPrompt.style.display = 'none';
         }
 
-        // Floating/Rotating World Items Animation
-        itemsInWorld.forEach(item => {
-          item.rotation.y += 0.025;
-          if (item.userData.baseY !== undefined) {
-            item.position.y = item.userData.baseY + Math.sin((time * 0.003) + (item.userData.bobOffset || 0)) * 0.08;
-          }
-        });
-
-        // Viewmodel Swing & Bobbing
-        const idleBobX = Math.sin(time * 0.002) * 0.005;
-        const idleBobY = Math.cos(time * 0.003) * 0.008;
-        const walkSwayX = isMovingGrounded ? Math.sin(time * 0.012) * 0.025 : 0;
-        const walkSwayY = isMovingGrounded ? Math.abs(Math.cos(time * 0.012)) * 0.02 : 0;
-
-        let swingRotX = 0, swingRotY = 0, swingRotZ = 0, swingOffsetZ = 0;
-
-        if (isSwinging) {
-          swingProgress += delta * swingSpeed;
-          if (swingProgress >= 1.0) {
-            isSwinging = false;
-            swingProgress = 0;
-          } else {
-            const arc = Math.sin(swingProgress * Math.PI);
-            swingRotX = -arc * 1.3;  
-            swingRotY = arc * 0.9;   
-            swingRotZ = -arc * 0.6;  
-            swingOffsetZ = -arc * 0.2; 
-          }
-        }
-
-        viewmodelGroup.position.set(
-          viewmodelBasePos.x + idleBobX + walkSwayX,
-          viewmodelBasePos.y + idleBobY - walkSwayY,
-          viewmodelBasePos.z + swingOffsetZ
-        );
-
-        viewmodelGroup.rotation.set(
-          viewmodelBaseRot.x + swingRotX,
-          viewmodelBaseRot.y + swingRotY,
-          viewmodelBaseRot.z + swingRotZ
-        );
+        checkPortalCollisions();
       }
 
       prevTime = time;
       renderer.render(scene, camera);
     }
 
+    // --- WINDOW RESIZE HANDLER ---
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    updateCoinHUD();
-    updateHealthHUD();
-    updateFuelHUD();
-    updateInventoryUI();
     animate();
   </script>
 </body>
