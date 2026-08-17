@@ -2156,27 +2156,46 @@
         controls.getObject().position.y += velocity.y * delta;
         isGrounded = false;
 
-        if (targets.length > 0) {
-          raycasterDown.set(controls.getObject().position, new THREE.Vector3(0, -1, 0));
-          const surfaceHits = raycasterDown.intersectObjects(targets, true);
+       if (targets.length > 0) {
+  raycasterDown.set(controls.getObject().position, new THREE.Vector3(0, -1, 0));
+  const surfaceHits = raycasterDown.intersectObjects(targets, true);
 
-          if (surfaceHits.length > 0) {
-            const hit = surfaceHits[0];
-            if (hit.distance <= playerHeight + maxStepHeight && velocity.y <= 0) {
-              controls.getObject().position.y = THREE.MathUtils.lerp(controls.getObject().position.y, hit.point.y + playerHeight, 0.5);
-              velocity.y = 0;
-              canJump = true;
-              isGrounded = true;
-            }
-          }
-        } else {
-          if (controls.getObject().position.y <= playerHeight) {
-            controls.getObject().position.y = playerHeight;
-            velocity.y = 0;
-            canJump = true;
-            isGrounded = true;
-          }
+  if (surfaceHits.length > 0) {
+    const hit = surfaceHits[0];
+    if (hit.distance <= playerHeight + maxStepHeight && velocity.y <= 0) {
+      // Detect if the landed mesh or its parent contains "bounce" in the name
+      let isBounceMesh = false;
+      hit.object.traverseAncestors((ancestor) => {
+        if (ancestor.name && ancestor.name.toLowerCase().includes('bounce')) {
+          isBounceMesh = true;
         }
+      });
+      if (hit.object.name && hit.object.name.toLowerCase().includes('bounce')) {
+        isBounceMesh = true;
+      }
+
+      if (isBounceMesh) {
+        // Physics formula: v = sqrt(2 * g * h)
+        // With gravity = 25.0 and target height h = 10 units:
+        velocity.y = Math.sqrt(2 * gravity * 10); // ~22.36 impulse velocity
+        canJump = false;
+        isGrounded = false;
+      } else {
+        controls.getObject().position.y = THREE.MathUtils.lerp(controls.getObject().position.y, hit.point.y + playerHeight, 0.5);
+        velocity.y = 0;
+        canJump = true;
+        isGrounded = true;
+      }
+    }
+  }
+} else {
+  if (controls.getObject().position.y <= playerHeight) {
+    controls.getObject().position.y = playerHeight;
+    velocity.y = 0;
+    canJump = true;
+    isGrounded = true;
+  }
+}
 
         if (controls.getObject().position.y < -30) respawnPlayer();
 
