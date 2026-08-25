@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D First-Person Game - GitHub GLB Loader with AI Helicopters & Bow System</title>
+  <title>loading..</title>
   <style>
     body {
       margin: 0;
@@ -875,11 +875,23 @@
       const group = new THREE.Group();
       group.userData.peerId = peerId;
 
-      const bodyGeo = new THREE.CapsuleGeometry(0.35, 0.8, 4, 8);
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff });
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
-      body.position.y = 0.75;
-      group.add(body);
+      if (playerModelTemplate) {
+        const model = playerModelTemplate.clone(true);
+        model.traverse((child) => {
+          if (child.isMesh && child.material) {
+            child.material = Array.isArray(child.material)
+              ? child.material.map(m => m.clone())
+              : child.material.clone();
+          }
+        });
+        group.add(model);
+      } else {
+        const bodyGeo = new THREE.CapsuleGeometry(0.35, 0.8, 4, 8);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 0.75;
+        group.add(body);
+      }
 
       scene.add(group);
       remotePlayers[peerId] = group;
@@ -1121,6 +1133,44 @@
       },
       undefined,
       (err) => console.warn('Could not load enemy.glb', err)
+    );
+
+    // --- PLAYER GLB TEMPLATE (used for remote multiplayer players) ---
+    let playerModelTemplate = null;
+
+    loader.load(
+      baseURL + 'player.glb',
+      (gltf) => {
+        const container = new THREE.Group();
+        const model = gltf.scene;
+
+        let box = new THREE.Box3().setFromObject(model);
+        let size = box.getSize(new THREE.Vector3());
+        if (size.y > 0) {
+          const scale = 1.5 / size.y;
+          model.scale.set(scale, scale, scale);
+        }
+
+        box.setFromObject(model);
+        model.position.y = -box.min.y;
+
+        container.add(model);
+        playerModelTemplate = container;
+
+        // Upgrade any remote players already created with the placeholder capsule.
+        Object.keys(remotePlayers).forEach((peerId) => {
+          const group = remotePlayers[peerId];
+          const pos = group.position.clone();
+          const rotY = group.rotation.y;
+          scene.remove(group);
+          delete remotePlayers[peerId];
+          const upgraded = createRemotePlayerMesh(peerId);
+          upgraded.position.copy(pos);
+          upgraded.rotation.y = rotY;
+        });
+      },
+      undefined,
+      (err) => console.warn('Could not load player.glb', err)
     );
 
     // --- HEALTH, FUEL & ARROW HUD LOGIC ---
