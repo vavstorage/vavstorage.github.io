@@ -1,0 +1,2895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D First-Person Game - GitHub GLB Loader with AI Helicopters & Bow System</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+      font-family: Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Red Flash Overlay for Damage */
+    #damage-flash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 0, 0, 0.35);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease-out;
+      z-index: 15;
+    }
+
+    /* Fullscreen menu overlay */
+    #blocker {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #ffffff;
+      text-align: center;
+      z-index: 20;
+    }
+
+    .card {
+      background: #222;
+      padding: 30px 40px;
+      border-radius: 12px;
+      border: 1px solid #444;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+      max-width: 90vw;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      margin: 0 0 5px 0;
+      font-size: 28px;
+    }
+
+    #loading-status {
+      font-size: 14px;
+      color: #ffd700;
+      font-weight: bold;
+    }
+
+    /* Buttons Container */
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .file-upload-btn, .action-btn {
+      background-color: #333;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 6px;
+      border: 1px solid #555;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .file-upload-btn:hover, .action-btn:hover {
+      background-color: #444;
+      transform: scale(1.02);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    /* Start Game Button */
+    #startBtn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 12px 28px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.2s;
+    }
+
+    #startBtn:hover {
+      background-color: #218838;
+      transform: scale(1.03);
+    }
+
+    .instructions-text {
+      font-size: 13px;
+      color: #aaa;
+      margin-top: 5px;
+      line-height: 1.5;
+    }
+
+    #file-name {
+      font-size: 13px;
+      color: #28a745;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 18px;
+      pointer-events: none;
+      z-index: 5;
+      user-select: none;
+    }
+
+    /* Top HUD Container */
+    #top-hud {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      display: flex;
+      gap: 12px;
+      z-index: 5;
+      user-select: none;
+    }
+
+    .hud-box {
+      background: rgba(0, 0, 0, 0.75);
+      font-weight: bold;
+      font-size: 16px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+    }
+
+    #level-hud {
+      color: #b15eff;
+      border: 1px solid #b15eff;
+    }
+
+    #health-hud {
+      color: #ff4d4d;
+      border: 1px solid #ff4d4d;
+    }
+
+    #fuel-hud {
+      color: #ff9900;
+      border: 1px solid #ff9900;
+    }
+
+    #arrow-hud {
+      color: #d2b48c;
+      border: 1px solid #d2b48c;
+    }
+
+    #coin-hud {
+      color: #ffd700;
+      border: 1px solid #ffd700;
+    }
+
+    #inv-hud-btn {
+      color: #4da6ff;
+      border: 1px solid #4da6ff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #inv-hud-btn:hover {
+      background: rgba(77, 166, 255, 0.25);
+    }
+
+    /* Interaction Prompt */
+    #interaction-prompt {
+      position: absolute;
+      bottom: 110px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      font-size: 14px;
+      display: none;
+      pointer-events: none;
+      z-index: 5;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    /* Inventory HUD */
+    #inventory-bar {
+      position: absolute;
+      bottom: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 10;
+    }
+
+    .slot {
+      width: 60px;
+      height: 60px;
+      background: rgba(20, 20, 20, 0.75);
+      border: 2px solid #555;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      color: #fff;
+      transition: all 0.15s ease;
+      backdrop-filter: blur(4px);
+      cursor: pointer;
+    }
+
+    .slot.active {
+      border-color: #28a745;
+      box-shadow: 0 0 12px rgba(40, 167, 69, 0.7);
+      transform: scale(1.08);
+      background: rgba(30, 50, 35, 0.85);
+    }
+
+    .slot-num {
+      position: absolute;
+      top: 4px;
+      left: 6px;
+      font-size: 10px;
+      color: #888;
+      font-weight: bold;
+    }
+
+    .slot.active .slot-num {
+      color: #28a745;
+    }
+
+    .slot-icon {
+      font-size: 22px;
+      margin-top: 2px;
+    }
+
+    .slot-name {
+      font-size: 9px;
+      color: #ccc;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 52px;
+    }
+
+    /* Shop & Inventory Modals UI */
+    #shop-modal, #inventory-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(20, 20, 20, 0.95);
+      border-radius: 12px;
+      padding: 25px 30px;
+      color: #fff;
+      z-index: 25;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 340px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+    }
+
+    #shop-modal {
+      border: 2px solid #ffd700;
+    }
+
+    #inventory-modal {
+      border: 2px solid #4da6ff;
+    }
+
+    .shop-header {
+      font-size: 22px;
+      color: #ffd700;
+      margin-bottom: 5px;
+      text-align: center;
+      font-weight: bold;
+      border-bottom: 1px solid #444;
+      padding-bottom: 10px;
+    }
+
+    #inventory-modal .shop-header {
+      color: #4da6ff;
+    }
+
+    .shop-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #2a2a2a;
+      padding: 10px 15px;
+      border-radius: 8px;
+      border: 1px solid #333;
+    }
+
+    .shop-item-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+    }
+
+    .buy-btn {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    .buy-btn:hover {
+      background: #218838;
+    }
+
+    .close-shop-btn {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      align-self: center;
+      font-weight: bold;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+
+    .close-shop-btn:hover {
+      background: #bd2130;
+    }
+
+    /* Inner Storage Inventory Grid Styles */
+    .inv-section-title {
+      font-size: 12px;
+      color: #aaa;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 5px;
+    }
+
+    .inv-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      justify-items: center;
+    }
+
+    .inv-slot {
+      width: 54px;
+      height: 54px;
+      background: rgba(35, 35, 35, 0.85);
+      border: 2px solid #555;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .inv-slot:hover {
+      border-color: #4da6ff;
+      background: rgba(50, 75, 100, 0.85);
+    }
+
+    .inv-slot.source-selected {
+      border-color: #ffd700;
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+      background: rgba(80, 70, 20, 0.85);
+      transform: scale(1.05);
+    }
+
+    .inv-slot-num {
+      position: absolute;
+      top: 3px;
+      left: 5px;
+      font-size: 9px;
+      color: #777;
+    }
+
+    @media (max-width: 768px) {
+      #inventory-bar {
+        bottom: 10px;
+        gap: 4px;
+      }
+      .slot {
+        width: 46px;
+        height: 46px;
+      }
+      .slot-name {
+        display: none;
+      }
+      #interaction-prompt {
+        bottom: 160px;
+      }
+    }
+
+    /* WebRTC Multiplayer UI */
+    #webrtc-box {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    #webrtc-box input {
+      min-width: 190px;
+    }
+
+    #webrtc-hud {
+      color: #00e5ff;
+      border: 1px solid #00e5ff;
+      cursor: default;
+    }
+
+    /* F10 Multiplayer Settings */
+    #multiplayer-menu {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      backdrop-filter: blur(5px);
+    }
+
+    #multiplayer-menu.open {
+      display: flex;
+    }
+
+    .multiplayer-card {
+      width: min(430px, 90vw);
+      background: #202020;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.65);
+    }
+
+    .multiplayer-card h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .join-peer-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .join-peer-row input {
+      flex: 1 1 210px;
+      min-width: 0;
+    }
+    .join-peer-btn {
+      background: #00e5ff;
+      color: #000;
+    }
+    .peer-status-message {
+      min-height: 18px;
+      color: #aaa;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .multiplayer-status {
+      margin: 0 0 18px;
+      color: #aaa;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .hosting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px;
+      background: #2a2a2a;
+      border: 1px solid #3b3b3b;
+      border-radius: 10px;
+      margin-bottom: 14px;
+    }
+
+    .hosting-label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .hosting-label strong { font-size: 16px; }
+    .hosting-label span { color: #999; font-size: 12px; }
+
+    #hosting-toggle {
+      width: 62px;
+      height: 34px;
+      border: 0;
+      border-radius: 999px;
+      padding: 4px;
+      background: #555;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    #hosting-toggle::after {
+      content: '';
+      display: block;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #fff;
+      transform: translateX(0);
+      transition: transform .2s;
+    }
+
+    #hosting-toggle.on {
+      background: #28a745;
+    }
+
+    #hosting-toggle.on::after {
+      transform: translateX(28px);
+    }
+
+    .peer-details {
+      background: #171717;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.7;
+      margin-bottom: 14px;
+      word-break: break-word;
+    }
+
+    .multiplayer-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+  </style>
+
+  <!-- PeerJS WebRTC multiplayer library -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <div id="damage-flash"></div>
+
+  <div id="blocker">
+    <div class="card">
+      <h1>3D Walkthrough</h1>
+      
+      <div id="loading-status">⏳ Loading assets from vavstorage.github.io...</div>
+
+      <div class="btn-row">
+        <label class="file-upload-btn">
+          📁 Override Map (.GLB)
+          <input type="file" id="fileInput" accept=".glb,.gltf" />
+        </label>
+        <button id="saveBtn" class="action-btn" style="background-color: #007bff;">💾 Save Game</button>
+        <button id="loadBtn" class="action-btn" style="background-color: #17a2b8;">📂 Load Game</button>
+      </div>
+
+      <span id="file-name">Default: vavstorage.github.io/model.glb</span>
+
+      <button id="startBtn">CLICK TO PLAY</button>
+
+      <div class="instructions-text">
+        <b>Controls:</b> WASD to Move | Space to Jump / Fly Helicopter | Left Click to Attack / Shoot Bow<br>
+        <b>Interact / Shop / Gas Station:</b> E | <b>Inventory:</b> I / TAB | <b>Use Consumable:</b> Right Click / F | <b>Drop:</b> Q | <b>Pause:</b> ESC
+      </div>
+    </div>
+  </div>
+
+  <div id="multiplayer-menu" aria-hidden="true">
+    <div class="multiplayer-card">
+      <h2>🌐 Multiplayer Settings</h2>
+      <p class="multiplayer-status">Press F10 any time to open or close this menu. Hosting controls whether this game creates a PeerJS host and accepts incoming players.</p>
+
+      <div class="hosting-row">
+        <div class="hosting-label">
+          <strong>Hosting</strong>
+          <span id="hosting-state-text">ON</span>
+        </div>
+        <button id="hosting-toggle" type="button" aria-label="Toggle multiplayer hosting"></button>
+      </div>
+
+      <div class="peer-details">
+        <div><b>Peer ID:</b> <span id="menu-peer-id">Starting...</span></div>
+        <div><b>Connected players:</b> <span id="menu-peer-count">0</span></div>
+      </div>
+
+      <div class="join-peer-row">
+        <input type="text" id="remote-peer-id" placeholder="Enter Peer ID to join" autocomplete="off" />
+        <button id="connectPeerBtn" class="action-btn join-peer-btn">🌐 Join Player</button>
+      </div>
+
+      <div id="peer-status-message" class="peer-status-message">Ready for multiplayer.</div>
+
+      <div class="multiplayer-actions">
+        <button id="close-multiplayer-menu" class="action-btn">Close (F10)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="crosshair">+</div>
+  
+  <div id="top-hud">
+    <div id="level-hud" class="hud-box">⭐ Level <span id="level-count">1</span> (<span id="xp-count">0</span>/<span id="xp-next">100</span> XP)</div>
+    <div id="health-hud" class="hud-box">❤️ Health: <span id="health-count">100</span> / 100</div>
+    <div id="fuel-hud" class="hud-box">⛽ Fuel: <span id="fuel-count">200</span> / 200</div>
+    <div id="arrow-hud" class="hud-box">🏹 Arrows: <span id="arrow-count">20</span></div>
+    <div id="coin-hud" class="hud-box">🪙 Coins: <span id="coin-count">10</span></div>
+
+    <div id="inv-hud-btn" class="hud-box">🎒 Inventory [I]</div>
+  </div>
+
+  <div id="interaction-prompt">Press <b>E</b> to interact with <span id="prompt-item-name" style="color: #28a745; font-weight: bold;">Item</span></div>
+
+  <div id="inventory-bar">
+    <div class="slot active" data-slot="0"><span class="slot-num">1</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="1"><span class="slot-num">2</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="2"><span class="slot-num">3</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="3"><span class="slot-num">4</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="4"><span class="slot-num">5</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+  </div>
+
+  <div id="shop-modal">
+    <div class="shop-header">🏪 Item Shop</div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🏹</span> <b>Hunting Bow</b></div>
+      <button class="buy-btn" data-item="bow" data-price="18">18 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>📦</span> <b>Arrow Bundle (+15 Arrows)</b></div>
+      <button class="buy-btn" data-item="arrows" data-price="5">5 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🚁</span> <b>Personal Helicopter</b></div>
+      <button class="buy-btn" data-item="helicopter" data-price="35">35 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🏎️</span> <b>Sports Car (3x Speed)</b></div>
+      <button class="buy-btn" data-item="car" data-price="25">25 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>⛽</span> <b>Fuel Tank (+100 Fuel)</b></div>
+      <button class="buy-btn" data-item="fuel_tank" data-price="10">10 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>⚔️</span> <b>Iron Sword</b></div>
+      <button class="buy-btn" data-item="iron_sword" data-price="15">15 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🗡️</span> <b>Stone Sword</b></div>
+      <button class="buy-btn" data-item="stone_sword" data-price="8">8 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>💎</span> <b>Diamonds</b></div>
+      <button class="buy-btn" data-item="diamonds" data-price="20">20 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🧪</span> <b>Health Potion</b></div>
+      <button class="buy-btn" data-item="potion" data-price="5">5 🪙 Buy</button>
+    </div>
+
+    <button class="close-shop-btn" id="closeShopBtn">Close Shop</button>
+  </div>
+
+  <div id="inventory-modal">
+    <div class="shop-header">🎒 Player Inventory</div>
+
+    <div class="inv-section-title">📦 Storage (Inner Slots)</div>
+    <div id="inner-grid" class="inv-grid"></div>
+
+    <div class="inv-section-title">⚡ Active Hotbar</div>
+    <div id="hotbar-grid" class="inv-grid"></div>
+
+    <div style="font-size: 11px; color: #888; text-align: center; margin-top: 4px;">Click an item slot to select and move/swap items.</div>
+
+    <button class="close-shop-btn" id="closeInvBtn">Close Inventory</button>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    // 1. Scene, Camera & Renderer
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb);
+    scene.fog = new THREE.Fog(0x87ceeb, 0, 100);
+
+    // --- PLAYER LEVELING, HEALTH, FUEL & ARROWS SETTINGS ---
+    let playerLevel = 1;
+    let playerXP = 0;
+    let xpToNextLevel = 100;
+
+    const levelCountDisplay = document.getElementById('level-count');
+    const xpCountDisplay = document.getElementById('xp-count');
+    const xpNextDisplay = document.getElementById('xp-next');
+
+    function updateLevelHUD() {
+      levelCountDisplay.textContent = playerLevel;
+      xpCountDisplay.textContent = playerXP;
+      xpNextDisplay.textContent = xpToNextLevel;
+    }
+
+    function addXP(amount) {
+      playerXP += amount;
+      while (playerXP >= xpToNextLevel) {
+        playerXP -= xpToNextLevel;
+        playerLevel++;
+        xpToNextLevel = Math.floor(xpToNextLevel * 1.5);
+        alert(`🎉 Level Up! You reached Level ${playerLevel}!`);
+      }
+      updateLevelHUD();
+    }
+
+    const playerHeight = 0.6;   
+    const playerRadius = 0.25;  
+    const maxStepHeight = 0.2;  
+
+    let playerHealth = 100;
+    const maxPlayerHealth = 100;
+
+    let playerFuel = 200;       
+    const maxPlayerFuel = 200;
+
+    let playerArrows = 20;
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 1000);
+    camera.position.set(0, playerHeight + 2, 0); 
+    camera.rotation.order = 'YXZ'; 
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // 2. Controls & UI Elements
+    const blocker = document.getElementById('blocker');
+    const startBtn = document.getElementById('startBtn');
+    const shopModal = document.getElementById('shop-modal');
+    const inventoryModal = document.getElementById('inventory-modal');
+    const invHudBtn = document.getElementById('inv-hud-btn');
+    const loadingStatus = document.getElementById('loading-status');
+    const damageFlash = document.getElementById('damage-flash');
+    const healthCountDisplay = document.getElementById('health-count');
+    const fuelCountDisplay = document.getElementById('fuel-count');
+    const arrowCountDisplay = document.getElementById('arrow-count');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('file-name');
+
+    const controls = new PointerLockControls(camera, document.body);
+
+    let isShopOpen = false;
+    let isInventoryOpen = false;
+
+    startBtn.addEventListener('click', () => {
+      controls.lock();
+    });
+
+    controls.addEventListener('lock', () => {
+      blocker.style.display = 'none';
+      shopModal.style.display = 'none';
+      inventoryModal.style.display = 'none';
+      isShopOpen = false;
+      isInventoryOpen = false;
+    });
+
+    controls.addEventListener('unlock', () => {
+      if (!isShopOpen && !isInventoryOpen) {
+        blocker.style.display = 'flex';
+      }
+    });
+
+    scene.add(controls.getObject());
+
+
+    // --- WebRTC MULTIPLAYER (PeerJS) ---
+    let peer = null;
+    let hostingEnabled = true;
+    let peerReady = false;
+    let multiplayerMenuWasLocked = false;
+    const connections = {};
+    const remotePlayers = {};
+    let lastBroadcast = 0;
+
+    const myPeerIdEl = document.getElementById('my-peer-id');
+    const remotePeerInput = document.getElementById('remote-peer-id');
+    const connectPeerBtn = document.getElementById('connectPeerBtn');
+    const multiplayerMenu = document.getElementById('multiplayer-menu');
+    const hostingToggle = document.getElementById('hosting-toggle');
+    const hostingStateText = document.getElementById('hosting-state-text');
+    const menuPeerId = document.getElementById('menu-peer-id');
+    const menuPeerCount = document.getElementById('menu-peer-count');
+    const closeMultiplayerMenuBtn = document.getElementById('close-multiplayer-menu');
+    const peerStatusMessage = document.getElementById('peer-status-message');
+
+    function updatePeerCount() {
+      const count = Object.keys(connections).length;
+      if (menuPeerCount) menuPeerCount.textContent = count;
+      if (peerStatusMessage) peerStatusMessage.textContent = count > 0 ? `${count} player${count === 1 ? '' : 's'} connected.` : 'No other players connected.';
+    }
+
+    function createRemotePlayerMesh(peerId) {
+      if (remotePlayers[peerId]) return remotePlayers[peerId];
+
+      const group = new THREE.Group();
+      group.userData.peerId = peerId;
+
+      const bodyGeo = new THREE.CapsuleGeometry(0.35, 0.8, 4, 8);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.y = 0.75;
+      group.add(body);
+
+      scene.add(group);
+      remotePlayers[peerId] = group;
+      return group;
+    }
+
+    function removeRemotePlayer(peerId) {
+      const player = remotePlayers[peerId];
+      if (!player) return;
+      scene.remove(player);
+      player.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach((mat) => mat && mat.dispose && mat.dispose());
+        }
+      });
+      delete remotePlayers[peerId];
+    }
+
+    function setupDataConnection(conn) {
+      connections[conn.peer] = conn;
+
+      conn.on('open', () => {
+        updatePeerCount();
+        createRemotePlayerMesh(conn.peer);
+        // Send our current transform immediately after connecting.
+        if (controls && controls.getObject) {
+          const pos = controls.getObject().position;
+          conn.send({ type: 'transform', x: pos.x, y: pos.y, z: pos.z, rotY: camera.rotation.y });
+        }
+      });
+
+      conn.on('data', (data) => {
+        if (!data || data.type !== 'transform') return;
+        const player = remotePlayers[conn.peer] || createRemotePlayerMesh(conn.peer);
+        player.position.set(data.x || 0, data.y || 0, data.z || 0);
+        player.rotation.y = Number.isFinite(data.rotY) ? data.rotY : 0;
+      });
+
+      conn.on('close', () => {
+        removeRemotePlayer(conn.peer);
+        delete connections[conn.peer];
+        updatePeerCount();
+      });
+
+      conn.on('error', (err) => {
+        console.warn('Peer connection error:', err);
+      });
+    }
+
+    function broadcastTransform() {
+      if (!hostingEnabled || !peerReady || !peer) return;
+      const pos = controls.getObject().position;
+      const payload = { type: 'transform', x: pos.x, y: pos.y, z: pos.z, rotY: camera.rotation.y };
+      Object.values(connections).forEach((conn) => {
+        if (conn && conn.open) {
+          try { conn.send(payload); } catch (err) { console.warn('Could not send transform:', err); }
+        }
+      });
+    }
+
+    function clearAllConnections() {
+      Object.keys(connections).forEach((peerId) => {
+        const conn = connections[peerId];
+        try { if (conn) conn.close(); } catch (_) {}
+        removeRemotePlayer(peerId);
+        delete connections[peerId];
+      });
+      updatePeerCount();
+    }
+
+    function setHostingEnabled(enabled) {
+      hostingEnabled = !!enabled;
+      if (hostingToggle) hostingToggle.classList.toggle('on', hostingEnabled);
+      if (hostingStateText) hostingStateText.textContent = hostingEnabled ? 'ON' : 'OFF';
+
+      if (!hostingEnabled) {
+        clearAllConnections();
+        peerReady = false;
+        if (peer) {
+          try { peer.destroy(); } catch (_) {}
+          peer = null;
+        }
+        if (myPeerIdEl) myPeerIdEl.textContent = 'Hosting OFF';
+        if (menuPeerId) menuPeerId.textContent = 'Hosting OFF';
+        if (peerStatusMessage) peerStatusMessage.textContent = 'Hosting is OFF. Turn it ON to create a Peer ID.';
+        return;
+      }
+
+      if (peerStatusMessage) peerStatusMessage.textContent = 'Starting multiplayer host...';
+      initWebRTC();
+    }
+
+    function openMultiplayerMenu() {
+      if (!multiplayerMenu) return;
+      multiplayerMenu.classList.add('open');
+      multiplayerMenu.setAttribute('aria-hidden', 'false');
+      multiplayerMenuWasLocked = controls.isLocked;
+      if (multiplayerMenuWasLocked) controls.unlock();
+      if (myPeerIdEl && menuPeerId) menuPeerId.textContent = myPeerIdEl.textContent;
+    }
+
+    function closeMultiplayerMenu() {
+      if (!multiplayerMenu) return;
+      multiplayerMenu.classList.remove('open');
+      multiplayerMenu.setAttribute('aria-hidden', 'true');
+      if (multiplayerMenuWasLocked && !isShopOpen && !isInventoryOpen) controls.lock();
+      multiplayerMenuWasLocked = false;
+    }
+
+    function generateShortPeerCode() {
+      // Six lowercase hexadecimal characters, e.g. d33ba4.
+      if (window.crypto && crypto.getRandomValues) {
+        const bytes = new Uint8Array(3);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+      }
+      return Math.floor(Math.random() * 0x1000000).toString(16).padStart(6, '0');
+    }
+
+    function initWebRTC(attempt = 0) {
+      if (!hostingEnabled || peer) return;
+      if (typeof Peer === 'undefined') {
+        peerReady = false;
+        if (myPeerIdEl) myPeerIdEl.textContent = 'PeerJS unavailable';
+        if (menuPeerId) menuPeerId.textContent = 'PeerJS unavailable';
+        return;
+      }
+
+      const shortCode = generateShortPeerCode();
+      if (peerStatusMessage) peerStatusMessage.textContent = `Starting multiplayer host (${shortCode})...`;
+      peer = new Peer(shortCode);
+
+      peer.on('open', (id) => {
+        peerReady = true;
+        if (myPeerIdEl) myPeerIdEl.textContent = id;
+        if (menuPeerId) menuPeerId.textContent = id;
+        if (peerStatusMessage) peerStatusMessage.textContent = 'Hosting is ON. Share this 6-character code to let another player join.';
+      });
+
+      peer.on('connection', (conn) => setupDataConnection(conn));
+
+      peer.on('error', (err) => {
+        console.warn('PeerJS error:', err);
+        const errType = err && err.type;
+        // Short codes can collide. Retry with a fresh six-character code.
+        if ((errType === 'unavailable-id' || errType === 'server-error') && attempt < 5 && hostingEnabled) {
+          try { peer.destroy(); } catch (_) {}
+          peer = null;
+          peerReady = false;
+          if (peerStatusMessage) peerStatusMessage.textContent = 'That code was unavailable. Generating a new code...';
+          setTimeout(() => initWebRTC(attempt + 1), 250);
+          return;
+        }
+        peerReady = false;
+        if (myPeerIdEl) myPeerIdEl.textContent = 'Connection error';
+        if (menuPeerId) menuPeerId.textContent = 'Connection error';
+        if (peerStatusMessage) peerStatusMessage.textContent = 'PeerJS connection error.';
+      });
+
+      peer.on('disconnected', () => {
+        peerReady = false;
+        if (myPeerIdEl) myPeerIdEl.textContent = 'Reconnecting...';
+        try { peer.reconnect(); } catch (_) {}
+      });
+    }
+
+    if (connectPeerBtn) {
+      connectPeerBtn.addEventListener('click', () => {
+        const targetId = remotePeerInput.value.trim();
+        if (!targetId) {
+          if (peerStatusMessage) peerStatusMessage.textContent = 'Enter another player\'s Peer ID first.';
+          return;
+        }
+        if (!hostingEnabled || !peer || !peerReady) {
+          if (peerStatusMessage) peerStatusMessage.textContent = 'Turn Hosting ON and wait for your Peer ID before joining.';
+          return;
+        }
+        if (connections[targetId]) {
+          if (peerStatusMessage) peerStatusMessage.textContent = 'You are already connected to that Peer ID.';
+          return;
+        }
+
+        const conn = peer.connect(targetId, { reliable: true });
+        setupDataConnection(conn);
+        if (peerStatusMessage) peerStatusMessage.textContent = 'Connecting to that Peer ID...';
+      });
+    }
+
+    if (hostingToggle) {
+      hostingToggle.classList.add('on');
+      hostingToggle.addEventListener('click', () => setHostingEnabled(!hostingEnabled));
+    }
+    if (closeMultiplayerMenuBtn) closeMultiplayerMenuBtn.addEventListener('click', closeMultiplayerMenu);
+
+    // Start with hosting enabled for backward compatibility.
+    initWebRTC();
+
+    // --- VIEWMODEL SYSTEM ---
+    const viewmodelGroup = new THREE.Group();
+    camera.add(viewmodelGroup);
+
+    const viewmodelBasePos = new THREE.Vector3(0.28, -0.22, -0.45);
+    const viewmodelBaseRot = new THREE.Euler(-0.15, 0.25, -0.1);
+
+    viewmodelGroup.position.copy(viewmodelBasePos);
+    viewmodelGroup.rotation.copy(viewmodelBaseRot);
+
+    let heldMesh = null;
+    let isSwinging = false;
+    let swingProgress = 0;
+    const swingSpeed = 12.0;
+
+    // --- ENEMY GLB TEMPLATE ---
+    const baseURL = 'https://vavstorage.github.io/';
+    const loader = new GLTFLoader();
+    let enemyModelTemplate = null;
+
+    loader.load(
+      baseURL + 'enemy.glb',
+      (gltf) => {
+        const container = new THREE.Group();
+        const model = gltf.scene;
+        model.rotation.x = Math.PI; 
+
+        let box = new THREE.Box3().setFromObject(model);
+        let size = box.getSize(new THREE.Vector3());
+        if (size.y > 0) {
+          const scale = 1.5 / size.y;
+          model.scale.set(scale, scale, scale);
+        }
+
+        box.setFromObject(model);
+        model.position.y = -box.min.y;
+
+        container.add(model);
+        enemyModelTemplate = container;
+      },
+      undefined,
+      (err) => console.warn('Could not load enemy.glb', err)
+    );
+
+    // --- HEALTH, FUEL & ARROW HUD LOGIC ---
+    function updateHealthHUD() {
+      healthCountDisplay.textContent = Math.max(0, Math.round(playerHealth));
+    }
+
+    function updateFuelHUD() {
+      fuelCountDisplay.textContent = Math.max(0, Math.round(playerFuel));
+    }
+
+    function updateArrowHUD() {
+      arrowCountDisplay.textContent = playerArrows;
+    }
+
+    function triggerDamageFlash() {
+      damageFlash.style.opacity = '1';
+      setTimeout(() => { damageFlash.style.opacity = '0'; }, 180);
+    }
+
+    function takeDamage(amount) {
+      playerHealth -= amount;
+      updateHealthHUD();
+      triggerDamageFlash();
+
+      if (playerHealth <= 0) {
+        alert("You died! Respawning...");
+        respawnPlayer();
+      }
+    }
+
+    function respawnPlayer() {
+      playerHealth = maxPlayerHealth;
+      updateHealthHUD();
+      controls.getObject().position.set(0, playerHeight + 3, 0);
+      velocity.set(0, 0, 0);
+    }
+
+    function healPlayer(amount) {
+      if (playerHealth >= maxPlayerHealth) return false;
+      playerHealth = Math.min(maxPlayerHealth, playerHealth + amount);
+      updateHealthHUD();
+      return true;
+    }
+
+    function refuelPlayer(amount) {
+      if (playerFuel >= maxPlayerFuel) {
+        alert("Fuel tank is already full!");
+        return false;
+      }
+      playerFuel = Math.min(maxPlayerFuel, playerFuel + amount);
+      updateFuelHUD();
+      alert(`Refueled! Current Fuel: ${Math.round(playerFuel)} / ${maxPlayerFuel}`);
+      return true;
+    }
+
+    function addArrows(amount) {
+      playerArrows += amount;
+      updateArrowHUD();
+      updateHeldWeaponModel();
+      alert(`Added ${amount} Arrows! Total: ${playerArrows}`);
+    }
+
+    function useSelectedItem() {
+      const item = inventory[selectedSlot];
+      if (!item) return;
+
+      if (item.name.includes('Potion')) {
+        if (healPlayer(35)) {
+          inventory[selectedSlot] = null;
+          updateInventoryUI();
+        } else {
+          alert("Health is already full!");
+        }
+      } else if (item.name.includes('Fuel Tank')) {
+        if (refuelPlayer(100)) { 
+          inventory[selectedSlot] = null;
+          updateInventoryUI();
+        }
+      } else if (item.name.includes('Arrow Bundle')) {
+        addArrows(15);
+        inventory[selectedSlot] = null;
+        updateInventoryUI();
+      }
+    }
+
+    // --- ARROW MESH CREATOR & PROJECTILES SYSTEM ---
+    const playerProjectiles = [];
+
+    function createArrowMesh() {
+      const arrowGroup = new THREE.Group();
+
+      // Shaft along Z
+      const shaftGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.65, 8);
+      const shaftMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.7 });
+      const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+      shaft.rotation.x = Math.PI / 2;
+      arrowGroup.add(shaft);
+
+      // Tip (Arrowhead facing forward +Z)
+      const tipGeo = new THREE.ConeGeometry(0.035, 0.12, 6);
+      const tipMat = new THREE.MeshStandardMaterial({ color: 0x808080, metalness: 0.8, roughness: 0.3 });
+      const tip = new THREE.Mesh(tipGeo, tipMat);
+      tip.rotation.x = Math.PI / 2;
+      tip.position.z = 0.38;
+      arrowGroup.add(tip);
+
+      // Fletching (Feathers at rear -Z)
+      const featherGeo = new THREE.BoxGeometry(0.004, 0.08, 0.12);
+      const featherMat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+      
+      const feather1 = new THREE.Mesh(featherGeo, featherMat);
+      feather1.position.z = -0.28;
+      arrowGroup.add(feather1);
+
+      const feather2 = new THREE.Mesh(featherGeo, featherMat);
+      feather2.rotation.z = Math.PI / 2;
+      feather2.position.z = -0.28;
+      arrowGroup.add(feather2);
+
+      return arrowGroup;
+    }
+
+    function fireArrow() {
+      if (playerArrows <= 0) {
+        alert("Out of arrows! Buy more in the shop or use an Arrow Bundle.");
+        return;
+      }
+
+      playerArrows--;
+      updateArrowHUD();
+      updateHeldWeaponModel();
+
+      const arrowMesh = createArrowMesh();
+      const camPos = camera.position.clone();
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+
+      arrowMesh.position.copy(camPos).add(camDir.clone().multiplyScalar(0.6));
+      
+      const speed = 42.0;
+      const velocity = camDir.clone().multiplyScalar(speed);
+
+      arrowMesh.lookAt(arrowMesh.position.clone().add(velocity));
+
+      scene.add(arrowMesh);
+      playerProjectiles.push({
+        mesh: arrowMesh,
+        velocity: velocity,
+        life: 5.0,
+        stuck: false
+      });
+    }
+
+    function triggerAttack() {
+      const item = inventory[selectedSlot];
+
+      if (item && item.name.includes('Bow')) {
+        if (!isSwinging) {
+          isSwinging = true;
+          swingProgress = 0;
+          fireArrow();
+        }
+        return;
+      }
+
+      if (!isSwinging) {
+        isSwinging = true;
+        swingProgress = 0;
+
+        // Hit Ground Enemies
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const enemy = enemies[i];
+          const dist = camera.position.distanceTo(enemy.mesh.position);
+
+          if (dist < 3.5) {
+            const dirToEnemy = enemy.mesh.position.clone().sub(camera.position).normalize();
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+
+            if (camDir.dot(dirToEnemy) > 0.4) {
+              let damage = 10;
+              if (item) {
+                if (item.name.includes('Iron')) damage = 25;
+                else if (item.name.includes('Stone')) damage = 18;
+                else if (item.name.includes('Diamond')) damage = 35;
+                else if (item.name.includes('Car')) damage = 30;
+              }
+
+              enemy.health -= damage;
+
+              enemy.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    if (mat && mat.color) {
+                      const orig = mat.color.getHex();
+                      mat.color.setHex(0xffffff);
+                      setTimeout(() => { if (mat && mat.color) mat.color.setHex(orig); }, 120);
+                    }
+                  });
+                }
+              });
+
+              const knockback = dirToEnemy.clone().multiplyScalar(1.2);
+              enemy.mesh.position.add(knockback);
+
+              if (enemy.health <= 0) {
+                spawnCoinAt(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.3, 0)));
+                addXP(25);
+                scene.remove(enemy.mesh);
+                enemies.splice(i, 1);
+              }
+            }
+          }
+        }
+
+        // Hit Enemy Helicopters
+        for (let i = enemyHelicopters.length - 1; i >= 0; i--) {
+          const heli = enemyHelicopters[i];
+          const dist = camera.position.distanceTo(heli.mesh.position);
+
+          if (dist < 10.0) {
+            const dirToHeli = heli.mesh.position.clone().sub(camera.position).normalize();
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+
+            if (camDir.dot(dirToHeli) > 0.35) {
+              let damage = 20;
+              if (item) {
+                if (item.name.includes('Iron')) damage = 35;
+                else if (item.name.includes('Stone')) damage = 25;
+                else if (item.name.includes('Diamond')) damage = 50;
+              }
+
+              heli.health -= damage;
+
+              heli.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    if (mat && mat.color) {
+                      const orig = mat.color.getHex();
+                      mat.color.setHex(0xff0000);
+                      setTimeout(() => { if (mat && mat.color) mat.color.setHex(orig); }, 120);
+                    }
+                  });
+                }
+              });
+
+              if (heli.health <= 0) {
+                spawnCoinAt(heli.mesh.position.clone());
+                spawnCoinAt(heli.mesh.position.clone().add(new THREE.Vector3(0.5, 0, 0)));
+                addXP(50);
+                scene.remove(heli.mesh);
+                enemyHelicopters.splice(i, 1);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function updateHeldWeaponModel() {
+      while (viewmodelGroup.children.length > 0) {
+        viewmodelGroup.remove(viewmodelGroup.children[0]);
+      }
+      heldMesh = null;
+
+      const currentItem = inventory[selectedSlot];
+      if (!currentItem) return;
+
+      if (currentItem.name.includes('Bow')) {
+        const bowGroup = new THREE.Group();
+
+        const arcGeo = new THREE.TorusGeometry(0.35, 0.02, 8, 16, Math.PI);
+        const arcMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.7 });
+        const arcMesh = new THREE.Mesh(arcGeo, arcMat);
+        arcMesh.rotation.y = Math.PI / 2;
+        bowGroup.add(arcMesh);
+
+        const stringGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0.35, 0),
+          new THREE.Vector3(0, -0.35, 0)
+        ]);
+        const stringMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
+        const stringMesh = new THREE.Line(stringGeo, stringMat);
+        bowGroup.add(stringMesh);
+
+        if (playerArrows > 0) {
+          const previewArrow = createArrowMesh();
+          previewArrow.scale.set(0.7, 0.7, 0.7);
+          previewArrow.rotation.y = Math.PI;
+          previewArrow.position.set(0, 0, -0.05);
+          bowGroup.add(previewArrow);
+        }
+
+        bowGroup.rotation.y = Math.PI / 5;
+        viewmodelGroup.add(bowGroup);
+        heldMesh = bowGroup;
+        return;
+      }
+
+      if (currentItem.name.includes('Helicopter')) {
+        const heliData = createHelicopterMesh();
+        const heliMesh = heliData.mesh;
+        heliMesh.scale.set(0.25, 0.25, 0.25);
+        heliMesh.position.set(0.2, -0.25, -0.45);
+        heliMesh.rotation.y = -Math.PI / 4;
+        viewmodelGroup.add(heliMesh);
+        heldMesh = heliMesh;
+        return;
+      }
+
+      const mesh = new THREE.Mesh(currentItem.geometry.clone(), currentItem.material.clone());
+      mesh.scale.set(0.7, 0.7, 0.7);
+
+      if (currentItem.name.includes('Sword')) {
+        mesh.rotation.x = Math.PI / 6;
+        mesh.rotation.z = -Math.PI / 12;
+      }
+
+      viewmodelGroup.add(mesh);
+      heldMesh = mesh;
+    }
+
+    window.addEventListener('mousedown', (e) => {
+      if (controls.isLocked && !isShopOpen && !isInventoryOpen) {
+        if (e.button === 0) triggerAttack();
+        if (e.button === 2) useSelectedItem();
+      }
+    });
+    window.addEventListener('contextmenu', e => e.preventDefault());
+
+    // 3. Physics & Movement Setup
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+    let isSpacePressed = false;
+    let canJump = false;
+    let isGrounded = false;
+
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+
+    const moveSpeed = 5.0;          
+    const gravity = 25.0;            
+    const fallMultiplier = 1.4;      
+    const jumpStrength = 8.5;        
+    const terminalVelocity = -35.0;  
+    const groundDamping = 10.0;      
+    const airDamping = 2.0;          
+
+    const raycasterDown = new THREE.Raycaster();
+    const raycasterHorizontal = new THREE.Raycaster();
+    const raycasterInteract = new THREE.Raycaster();
+
+    function performJump() {
+      if (canJump) {
+        velocity.y = jumpStrength;
+        canJump = false;
+        isGrounded = false;
+      }
+    }
+
+    // --- PROCEDURAL HELICOPTER CREATOR ---
+    function createHelicopterMesh() {
+      const heliGroup = new THREE.Group();
+
+      const bodyGeo = new THREE.BoxGeometry(1.2, 1.0, 2.4);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x223344, metalness: 0.7, roughness: 0.3 });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.y = 0.5;
+      heliGroup.add(body);
+
+      const glassGeo = new THREE.BoxGeometry(1.0, 0.65, 0.8);
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.65, metalness: 0.9 });
+      const glass = new THREE.Mesh(glassGeo, glassMat);
+      glass.position.set(0, 0.65, -0.9);
+      heliGroup.add(glass);
+
+      const tailGeo = new THREE.BoxGeometry(0.3, 0.3, 2.2);
+      const tailMat = new THREE.MeshStandardMaterial({ color: 0x111c24 });
+      const tail = new THREE.Mesh(tailGeo, tailMat);
+      tail.position.set(0, 0.6, 2.0);
+      heliGroup.add(tail);
+
+      const mainRotorGroup = new THREE.Group();
+      mainRotorGroup.name = 'mainRotor';
+      mainRotorGroup.position.set(0, 1.25, 0);
+
+      const hubGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.25, 8);
+      const hubMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+      const hub = new THREE.Mesh(hubGeo, hubMat);
+      mainRotorGroup.add(hub);
+
+      const bladeGeo = new THREE.BoxGeometry(4.2, 0.04, 0.22);
+      const bladeMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8 });
+      const blade1 = new THREE.Mesh(bladeGeo, bladeMat);
+      const blade2 = new THREE.Mesh(bladeGeo, bladeMat);
+      blade2.rotation.y = Math.PI / 2;
+      mainRotorGroup.add(blade1, blade2);
+
+      heliGroup.add(mainRotorGroup);
+
+      const tailRotorGroup = new THREE.Group();
+      tailRotorGroup.name = 'tailRotor';
+      tailRotorGroup.position.set(0.2, 0.75, 3.0);
+      const tailBladeGeo = new THREE.BoxGeometry(0.04, 0.8, 0.1);
+      const tailBlade = new THREE.Mesh(tailBladeGeo, bladeMat);
+      tailRotorGroup.add(tailBlade);
+      heliGroup.add(tailRotorGroup);
+
+      const skidMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.8 });
+      const skid1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 2.2), skidMat);
+      skid1.position.set(-0.6, -0.15, 0);
+      const skid2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 2.2), skidMat);
+      skid2.position.set(0.6, -0.15, 0);
+      heliGroup.add(skid1, skid2);
+
+      const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), skidMat);
+      leg1.position.set(-0.6, 0.1, 0.5);
+      const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), skidMat);
+      leg2.position.set(0.6, 0.1, 0.5);
+      const leg3 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), skidMat);
+      leg3.position.set(-0.6, 0.1, -0.5);
+      const leg4 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), skidMat);
+      leg4.position.set(0.6, 0.1, -0.5);
+      heliGroup.add(leg1, leg2, leg3, leg4);
+
+      return { mesh: heliGroup, mainRotor: mainRotorGroup, tailRotor: tailRotorGroup };
+    }
+
+    // --- AI SKY PATROL HELICOPTERS SYSTEM ---
+    const enemyHelicopters = [];
+    const heliProjectiles = [];
+    const maxHelicoptersInSky = 2;
+    const heliSpawnIntervalMs = 12000;
+    const HELI_PATROL_RADIUS = 10.0;
+
+    function getSpawnerPosition() {
+      if (spawnerMeshes.length > 0) {
+        const randomSpawner = spawnerMeshes[Math.floor(Math.random() * spawnerMeshes.length)];
+        const box = new THREE.Box3().setFromObject(randomSpawner);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        return center;
+      }
+      return new THREE.Vector3(0, 0, 0);
+    }
+
+    function getRandomPointInRadius(centerPos, radius) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * radius;
+      return new THREE.Vector3(
+        centerPos.x + Math.cos(angle) * distance,
+        centerPos.y,
+        centerPos.z + Math.sin(angle) * distance
+      );
+    }
+
+    function spawnEnemyHelicopter() {
+      if (enemyHelicopters.length >= maxHelicoptersInSky) return;
+
+      const spawnerPos = getSpawnerPosition();
+      const spawnPoint = getRandomPointInRadius(spawnerPos, HELI_PATROL_RADIUS);
+      const spawnAltitude = Math.max(spawnerPos.y + 14.0, 14.0) + Math.random() * 6.0;
+
+      const heliObj = createHelicopterMesh();
+      heliObj.mesh.position.set(spawnPoint.x, spawnAltitude, spawnPoint.z);
+      scene.add(heliObj.mesh);
+
+      const firstPatrolPoint = getRandomPointInRadius(spawnerPos, HELI_PATROL_RADIUS);
+
+      enemyHelicopters.push({
+        mesh: heliObj.mesh,
+        mainRotor: heliObj.mainRotor,
+        tailRotor: heliObj.tailRotor,
+        health: 75,
+        maxHealth: 75,
+        speed: 6.5,
+        spawnerCenter: spawnerPos.clone(),
+        targetWaypoint: new THREE.Vector3(firstPatrolPoint.x, spawnAltitude, firstPatrolPoint.z),
+        lastShootTime: 0,
+        shootCooldown: 1500,
+        altitude: spawnAltitude
+      });
+    }
+
+    setInterval(spawnEnemyHelicopter, heliSpawnIntervalMs);
+
+    function heliShootLaser(heli, targetPos) {
+      const laserGeo = new THREE.SphereGeometry(0.15, 8, 8);
+      const laserMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+      const laserMesh = new THREE.Mesh(laserGeo, laserMat);
+
+      const startPos = heli.mesh.position.clone().add(new THREE.Vector3(0, -0.6, 0));
+      laserMesh.position.copy(startPos);
+
+      const aimSpread = new THREE.Vector3((Math.random() - 0.5) * 1.5, -0.3, (Math.random() - 0.5) * 1.5);
+      const aimTarget = targetPos.clone().add(aimSpread);
+      const fireDir = aimTarget.sub(startPos).normalize();
+
+      scene.add(laserMesh);
+      heliProjectiles.push({
+        mesh: laserMesh,
+        direction: fireDir,
+        speed: 24,
+        life: 2.5
+      });
+    }
+
+    // --- ENEMY & SPAWNER SYSTEM ---
+    const enemies = [];
+    const maxEnemiesOnIsland = 2;
+    const enemySpawnIntervalMs = 10000;
+    let spawnerMeshes = [];
+
+    function clearEnemies() {
+      for (let i = enemies.length - 1; i >= 0; i--) scene.remove(enemies[i].mesh);
+      enemies.length = 0;
+      for (let i = enemyHelicopters.length - 1; i >= 0; i--) scene.remove(enemyHelicopters[i].mesh);
+      enemyHelicopters.length = 0;
+    }
+
+    function detectSpawnersInModel(gltfScene) {
+      spawnerMeshes = [];
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('spawner')) {
+          if (child.isMesh) {
+            if (!spawnerMeshes.includes(child)) spawnerMeshes.push(child);
+          } else {
+            child.traverse((sub) => {
+              if (sub.isMesh && !spawnerMeshes.includes(sub)) {
+                spawnerMeshes.push(sub);
+              }
+            });
+          }
+        }
+      });
+    }
+
+    function spawnEnemy() {
+      const hasSpawners = spawnerMeshes.length > 0;
+      if ((!hasSpawners && !currentLoadedFileName.toLowerCase().includes('island')) || enemies.length >= maxEnemiesOnIsland) return;
+
+      let spawnX = 0, spawnZ = 0, spawnY = 0.8;
+      let targetSpawner = null;
+
+      if (hasSpawners) {
+        targetSpawner = spawnerMeshes[Math.floor(Math.random() * spawnerMeshes.length)];
+        const box = new THREE.Box3().setFromObject(targetSpawner);
+        
+        const minX = Math.min(box.min.x, box.max.x);
+        const maxX = Math.max(box.min.x, box.max.x);
+        const minZ = Math.min(box.min.z, box.max.z);
+        const maxZ = Math.max(box.min.z, box.max.z);
+
+        spawnX = THREE.MathUtils.lerp(minX, maxX, Math.random());
+        spawnZ = THREE.MathUtils.lerp(minZ, maxZ, Math.random());
+
+        const ray = new THREE.Raycaster(new THREE.Vector3(spawnX, box.max.y + 5, spawnZ), new THREE.Vector3(0, -1, 0));
+        const hits = ray.intersectObject(targetSpawner, true);
+        if (hits.length > 0) {
+          spawnY = hits[0].point.y + 0.05;
+          spawnX = hits[0].point.x;
+          spawnZ = hits[0].point.z;
+        } else {
+          spawnY = box.max.y + 0.05;
+        }
+      } else {
+        const radius = 16;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 6.0 + Math.random() * radius;
+        spawnX = Math.cos(angle) * dist;
+        spawnZ = Math.sin(angle) * dist;
+
+        if (loadedModel) {
+          const floorRay = new THREE.Raycaster(new THREE.Vector3(spawnX, 50, spawnZ), new THREE.Vector3(0, -1, 0));
+          const hits = floorRay.intersectObject(loadedModel, true);
+          if (hits.length > 0) spawnY = hits[0].point.y + 0.05;
+        }
+      }
+
+      let enemyGroup;
+      if (enemyModelTemplate) {
+        enemyGroup = enemyModelTemplate.clone(true);
+        enemyGroup.traverse((child) => {
+          if (child.isMesh && child.material) {
+            child.material = Array.isArray(child.material)
+              ? child.material.map(m => m.clone())
+              : child.material.clone();
+          }
+        });
+        enemyGroup.position.set(spawnX, spawnY, spawnZ);
+      } else {
+        enemyGroup = new THREE.Group();
+        const bodyMesh = new THREE.Mesh(
+          new THREE.CapsuleGeometry(0.35, 0.8, 4, 8),
+          new THREE.MeshStandardMaterial({ color: 0xd93838, roughness: 0.4 })
+        );
+        bodyMesh.position.y = 0.75;
+        enemyGroup.add(bodyMesh);
+
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), eyeMat);
+        leftEye.position.set(-0.15, 1.0, -0.3);
+        const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), eyeMat);
+        rightEye.position.set(0.15, 1.0, -0.3);
+        enemyGroup.add(leftEye, rightEye);
+
+        enemyGroup.position.set(spawnX, spawnY, spawnZ);
+      }
+
+      scene.add(enemyGroup);
+      enemies.push({
+        mesh: enemyGroup,
+        health: 30,
+        maxHealth: 30,
+        speed: 2.5,
+        lastAttackTime: 0,
+        animOffset: Math.random() * 10,
+        baseY: spawnY,
+        spawnerMesh: targetSpawner
+      });
+    }
+
+    setInterval(spawnEnemy, enemySpawnIntervalMs);
+
+    // --- INVENTORY & ITEMS DATA ---
+    let playerCoins = 10;
+    
+    const HOTBAR_SLOTS = 5;
+    const INNER_SLOTS = 15;
+    const TOTAL_SLOTS = HOTBAR_SLOTS + INNER_SLOTS;
+    const inventory = new Array(TOTAL_SLOTS).fill(null);
+    let selectedSlot = 0; 
+    let selectedSwapSourceIndex = null; 
+
+    const itemsInWorld = [];
+    const interactableObjects = [];
+    let hoveredObject = null;
+    let fallbackShop = null;
+
+    const coinCountDisplay = document.getElementById('coin-count');
+    const interactionPrompt = document.getElementById('interaction-prompt');
+    const promptItemName = document.getElementById('prompt-item-name');
+    const innerGridEl = document.getElementById('inner-grid');
+    const hotbarGridEl = document.getElementById('hotbar-grid');
+
+    function updateCoinHUD() {
+      coinCountDisplay.textContent = playerCoins;
+    }
+
+    const itemCatalog = {
+      bow: {
+        name: 'Hunting Bow',
+        icon: '🏹',
+        geometry: new THREE.TorusGeometry(0.35, 0.02, 8, 16, Math.PI),
+        material: new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.7 })
+      },
+      arrows: {
+        name: 'Arrow Bundle',
+        icon: '📦',
+        geometry: new THREE.CylinderGeometry(0.08, 0.08, 0.4, 8),
+        material: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.6 })
+      },
+      helicopter: {
+        name: 'Personal Helicopter',
+        icon: '🚁',
+        geometry: new THREE.BoxGeometry(0.4, 0.3, 0.6),
+        material: new THREE.MeshStandardMaterial({ color: 0x007bff, metalness: 0.8, roughness: 0.2 })
+      },
+      car: {
+        name: 'Sports Car',
+        icon: '🏎️',
+        geometry: new THREE.BoxGeometry(0.35, 0.2, 0.65),
+        material: new THREE.MeshStandardMaterial({ color: 0xef233c, metalness: 0.8, roughness: 0.2 })
+      },
+      fuel_tank: {
+        name: 'Fuel Tank',
+        icon: '⛽',
+        geometry: new THREE.CylinderGeometry(0.2, 0.2, 0.5, 12),
+        material: new THREE.MeshStandardMaterial({ color: 0xdd2222, roughness: 0.3 })
+      },
+      iron_sword: {
+        name: 'Iron Sword',
+        icon: '⚔️',
+        geometry: new THREE.BoxGeometry(0.08, 0.7, 0.03),
+        material: new THREE.MeshStandardMaterial({ color: 0xd0d7de, metalness: 0.9, roughness: 0.2 })
+      },
+      stone_sword: {
+        name: 'Stone Sword',
+        icon: '🗡️',
+        geometry: new THREE.BoxGeometry(0.1, 0.65, 0.04),
+        material: new THREE.MeshStandardMaterial({ color: 0x707070, roughness: 0.8, metalness: 0.1 })
+      },
+      diamonds: {
+        name: 'Diamonds',
+        icon: '💎',
+        geometry: new THREE.OctahedronGeometry(0.25),
+        material: new THREE.MeshStandardMaterial({ color: 0x00ffff, roughness: 0.1, metalness: 0.1 })
+      },
+      potion: {
+        name: 'Health Potion',
+        icon: '🧪',
+        geometry: new THREE.SphereGeometry(0.2, 16, 16),
+        material: new THREE.MeshStandardMaterial({ color: 0xff0055, roughness: 0.2 })
+      }
+    };
+
+    function spawnWorldItem(name, icon, geometry, material, position, isCoinStack = false) {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(position);
+      mesh.userData = {
+        isItem: true,
+        isCoin: isCoinStack,
+        name: name,
+        icon: icon,
+        geometry: geometry,
+        material: material,
+        baseY: position.y,
+        velocityY: 0,
+        hasGravity: true,
+        bobOffset: Math.random() * Math.PI * 2
+      };
+      scene.add(mesh);
+      itemsInWorld.push(mesh);
+      interactableObjects.push(mesh);
+      return mesh;
+    }
+
+    function spawnCoinAt(position) {
+      const coinGeom = new THREE.CylinderGeometry(0.22, 0.22, 0.06, 16);
+      const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
+      const coinMesh = spawnWorldItem('Coins (+10)', '🪙', coinGeom, coinMat, position, true);
+      coinMesh.rotation.x = Math.PI / 2;
+      coinMesh.userData.velocityY = 3.5 + Math.random() * 2.0;
+      return coinMesh;
+    }
+
+    function spawnRandomCoin() {
+      const activeCoins = itemsInWorld.filter(item => item.userData && item.userData.isCoin).length;
+      if (activeCoins >= 3) return;
+
+      const radius = 12;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 2.0 + Math.random() * radius;
+      const x = Math.cos(angle) * dist;
+      const z = Math.sin(angle) * dist;
+      let spawnY = 3.5;
+
+      if (loadedModel) {
+        const floorRay = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
+        const hits = floorRay.intersectObject(loadedModel, true);
+        if (hits.length > 0) spawnY = hits[0].point.y + 3.5;
+      }
+
+      spawnCoinAt(new THREE.Vector3(x, spawnY, z));
+    }
+
+    spawnCoinAt(new THREE.Vector3(0, 2.5, -3.5));
+    setInterval(spawnRandomCoin, 15000);
+
+    function createFallbackShopStand(position) {
+      const shopGroup = new THREE.Group();
+      const counter = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 0.8, 1),
+        new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 })
+      );
+      counter.position.y = 0.4;
+      shopGroup.add(counter);
+
+      const sign = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 0.5, 0.1),
+        new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.5 })
+      );
+      sign.position.set(0, 1.5, 0);
+      shopGroup.add(sign);
+
+      shopGroup.position.copy(position);
+      shopGroup.traverse((child) => {
+        child.userData.isShop = true;
+        child.userData.name = 'Item Shop';
+      });
+
+      scene.add(shopGroup);
+      interactableObjects.push(shopGroup);
+      return shopGroup;
+    }
+
+    function removeFallbackShop() {
+      if (fallbackShop) {
+        scene.remove(fallbackShop);
+        fallbackShop.traverse((child) => {
+          const idx = interactableObjects.indexOf(child);
+          if (idx > -1) interactableObjects.splice(idx, 1);
+        });
+        const idx = interactableObjects.indexOf(fallbackShop);
+        if (idx > -1) interactableObjects.splice(idx, 1);
+        fallbackShop = null;
+      }
+    }
+
+    function setupShopFromGLTF(gltfScene) {
+      for (let i = interactableObjects.length - 1; i >= 0; i--) {
+        if (interactableObjects[i].userData && interactableObjects[i].userData.isGLBShop) {
+          interactableObjects.splice(i, 1);
+        }
+      }
+
+      removeFallbackShop();
+
+      let foundShop = false;
+      const shopKeywords = ['shop', 'store', 'vendor', 'merchant', 'counter', 'stand', 'market', 'kiosk', 'stall', 'npc', 'seller'];
+
+      gltfScene.traverse((child) => {
+        if (child.name) {
+          const lowerName = child.name.toLowerCase();
+          const isShopNode = shopKeywords.some(keyword => lowerName.includes(keyword));
+
+          if (isShopNode) {
+            foundShop = true;
+            const displayName = child.name.replace(/_/g, ' ') || 'Item Shop';
+            child.traverse((subChild) => {
+              subChild.userData.isShop = true;
+              subChild.userData.isGLBShop = true;
+              subChild.userData.name = displayName;
+              if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
+            });
+          }
+        }
+      });
+
+      if (!foundShop) {
+        fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
+      }
+    }
+
+    // --- GAS STATION DETECTION ---
+    function setupGasStationsFromGLTF(gltfScene) {
+      for (let i = interactableObjects.length - 1; i >= 0; i--) {
+        if (interactableObjects[i].userData && interactableObjects[i].userData.isGasStation) {
+          interactableObjects.splice(i, 1);
+        }
+      }
+
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('gas')) {
+          const displayName = 'Gas Station';
+          child.traverse((subChild) => {
+            subChild.userData.isGasStation = true;
+            subChild.userData.name = displayName;
+            if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
+          });
+          child.userData.isGasStation = true;
+          child.userData.name = displayName;
+          if (!interactableObjects.includes(child)) interactableObjects.push(child);
+        }
+      });
+    }
+
+    // --- INVENTORY UI & SWAP SYSTEM ---
+    function findFirstEmptySlot() {
+      for (let i = 0; i < TOTAL_SLOTS; i++) {
+        if (inventory[i] === null) return i;
+      }
+      return -1;
+    }
+
+    function handleSlotClickInModal(slotIndex) {
+      if (selectedSwapSourceIndex === null) {
+        if (inventory[slotIndex] !== null) {
+          selectedSwapSourceIndex = slotIndex;
+        }
+      } else if (selectedSwapSourceIndex === slotIndex) {
+        selectedSwapSourceIndex = null;
+      } else {
+        const temp = inventory[selectedSwapSourceIndex];
+        inventory[selectedSwapSourceIndex] = inventory[slotIndex];
+        inventory[slotIndex] = temp;
+        selectedSwapSourceIndex = null;
+      }
+      updateInventoryUI();
+    }
+
+    function renderModalInventoryGrids() {
+      innerGridEl.innerHTML = '';
+      hotbarGridEl.innerHTML = '';
+
+      for (let i = HOTBAR_SLOTS; i < TOTAL_SLOTS; i++) {
+        const item = inventory[i];
+        const slotEl = document.createElement('div');
+        slotEl.className = 'inv-slot' + (selectedSwapSourceIndex === i ? ' source-selected' : '');
+        slotEl.innerHTML = `
+          <span class="inv-slot-num">${i + 1}</span>
+          <span style="font-size: 20px;">${item ? (item.icon || '📦') : ''}</span>
+          <span class="slot-name" style="font-size: 8px;">${item ? item.name : ''}</span>
+        `;
+        slotEl.addEventListener('click', () => handleSlotClickInModal(i));
+        innerGridEl.appendChild(slotEl);
+      }
+
+      for (let i = 0; i < HOTBAR_SLOTS; i++) {
+        const item = inventory[i];
+        const slotEl = document.createElement('div');
+        slotEl.className = 'inv-slot' + (selectedSwapSourceIndex === i ? ' source-selected' : '');
+        slotEl.innerHTML = `
+          <span class="inv-slot-num">${i + 1}</span>
+          <span style="font-size: 20px;">${item ? (item.icon || '📦') : ''}</span>
+          <span class="slot-name" style="font-size: 8px;">${item ? item.name : ''}</span>
+        `;
+        slotEl.addEventListener('click', () => handleSlotClickInModal(i));
+        hotbarGridEl.appendChild(slotEl);
+      }
+    }
+
+    function updateInventoryUI() {
+      const slots = document.querySelectorAll('#inventory-bar .slot');
+      slots.forEach((slotEl, idx) => {
+        slotEl.classList.toggle('active', idx === selectedSlot);
+        const item = inventory[idx];
+        const iconEl = slotEl.querySelector('.slot-icon');
+        const nameEl = slotEl.querySelector('.slot-name');
+
+        if (item) {
+          iconEl.textContent = item.icon || '📦';
+          nameEl.textContent = item.name;
+        } else {
+          iconEl.textContent = '';
+          nameEl.textContent = 'Empty';
+        }
+      });
+
+      renderModalInventoryGrids();
+      updateHeldWeaponModel();
+    }
+
+    document.querySelectorAll('#inventory-bar .slot').forEach((slotEl, idx) => {
+      slotEl.addEventListener('click', () => {
+        selectedSlot = idx;
+        updateInventoryUI();
+      });
+    });
+
+    function pickupItem(itemMesh) {
+      if (itemMesh.userData.isCoin) {
+        playerCoins += 10;
+        updateCoinHUD();
+      } else {
+        const emptyIndex = findFirstEmptySlot();
+        if (emptyIndex === -1) {
+          alert("Inventory Full!");
+          return;
+        }
+        inventory[emptyIndex] = {
+          name: itemMesh.userData.name,
+          icon: itemMesh.userData.icon,
+          geometry: itemMesh.geometry,
+          material: itemMesh.material
+        };
+        updateInventoryUI();
+      }
+
+      scene.remove(itemMesh);
+      const idx = itemsInWorld.indexOf(itemMesh);
+      if (idx > -1) itemsInWorld.splice(idx, 1);
+      const intIdx = interactableObjects.indexOf(itemMesh);
+      if (intIdx > -1) interactableObjects.splice(intIdx, 1);
+
+      hoveredObject = null;
+      interactionPrompt.style.display = 'none';
+    }
+
+    function addItemToInventory(itemData) {
+      const emptyIndex = findFirstEmptySlot();
+      if (emptyIndex === -1) {
+        alert("Inventory Full! Drop or move an item first.");
+        return false;
+      }
+      inventory[emptyIndex] = {
+        name: itemData.name,
+        icon: itemData.icon,
+        geometry: itemData.geometry,
+        material: itemData.material
+      };
+      updateInventoryUI();
+      return true;
+    }
+
+    function dropSelectedItem() {
+      const itemData = inventory[selectedSlot];
+      if (!itemData) return;
+
+      const dropPos = new THREE.Vector3();
+      camera.getWorldPosition(dropPos);
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+
+      dropPos.add(dir.multiplyScalar(1.5));
+      dropPos.y = Math.max(dropPos.y, 0.5);
+
+      const droppedItem = spawnWorldItem(itemData.name, itemData.icon, itemData.geometry, itemData.material, dropPos);
+      droppedItem.userData.velocityY = 2.0;
+
+      inventory[selectedSlot] = null;
+      updateInventoryUI();
+    }
+
+    function openShop() {
+      isShopOpen = true;
+      if (controls.isLocked) controls.unlock();
+      shopModal.style.display = 'flex';
+      interactionPrompt.style.display = 'none';
+    }
+
+    function closeShop() {
+      shopModal.style.display = 'none';
+      isShopOpen = false;
+      controls.lock();
+    }
+
+    function openInventory() {
+      isInventoryOpen = true;
+      selectedSwapSourceIndex = null;
+      if (controls.isLocked) controls.unlock();
+      inventoryModal.style.display = 'flex';
+      interactionPrompt.style.display = 'none';
+      updateInventoryUI();
+    }
+
+    function closeInventory() {
+      inventoryModal.style.display = 'none';
+      isInventoryOpen = false;
+      selectedSwapSourceIndex = null;
+      controls.lock();
+    }
+
+    function toggleInventory() {
+      if (isInventoryOpen) closeInventory();
+      else openInventory();
+    }
+
+    document.getElementById('closeShopBtn').addEventListener('click', closeShop);
+    document.getElementById('closeInvBtn').addEventListener('click', closeInventory);
+    invHudBtn.addEventListener('click', toggleInventory);
+
+    document.querySelectorAll('.buy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const itemKey = e.target.getAttribute('data-item');
+        const price = parseInt(e.target.getAttribute('data-price'), 10);
+
+        if (playerCoins < price) {
+          alert("Not enough coins!");
+          return;
+        }
+
+        if (itemKey === 'arrows') {
+          playerCoins -= price;
+          updateCoinHUD();
+          addArrows(15);
+          return;
+        }
+
+        const template = itemCatalog[itemKey];
+        if (template && addItemToInventory(template)) {
+          playerCoins -= price;
+          updateCoinHUD();
+        }
+      });
+    });
+
+    function handleInteraction() {
+      if (hoveredObject && controls.isLocked) {
+        if (hoveredObject.userData.isShop) openShop();
+        else if (hoveredObject.userData.isGasStation) refuelPlayer(200);
+        else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
+      }
+    }
+
+    // --- SAVE / LOAD GAME SYSTEM ---
+    function saveGame() {
+      const saveData = {
+        level: playerLevel,
+        xp: playerXP,
+        xpToNextLevel: xpToNextLevel,
+        coins: playerCoins,
+        health: playerHealth,
+        fuel: playerFuel,
+        arrows: playerArrows,
+        map: currentLoadedFileName,
+        inventory: inventory.map(item => item ? item.name : null),
+        position: {
+          x: controls.getObject().position.x,
+          y: controls.getObject().position.y,
+          z: controls.getObject().position.z
+        }
+      };
+
+      localStorage.setItem('3d_fps_game_save', JSON.stringify(saveData));
+      alert("Game Progress Saved!");
+    }
+
+    function loadGame() {
+      const rawData = localStorage.getItem('3d_fps_game_save');
+      if (!rawData) {
+        alert("No save file found!");
+        return;
+      }
+
+      try {
+        const saveData = JSON.parse(rawData);
+        playerLevel = saveData.level || 1;
+        playerXP = saveData.xp || 0;
+        xpToNextLevel = saveData.xpToNextLevel || 100;
+        playerCoins = saveData.coins || 10;
+        playerHealth = saveData.health || 100;
+        playerFuel = (saveData.fuel !== undefined) ? saveData.fuel : 200;
+        playerArrows = (saveData.arrows !== undefined) ? saveData.arrows : 20;
+        
+        updateLevelHUD();
+        updateCoinHUD();
+        updateHealthHUD();
+        updateFuelHUD();
+        updateArrowHUD();
+
+        if (Array.isArray(saveData.inventory)) {
+          saveData.inventory.forEach((itemName, idx) => {
+            if (idx >= TOTAL_SLOTS) return;
+            if (!itemName) {
+              inventory[idx] = null;
+            } else {
+              const catKey = Object.keys(itemCatalog).find(k => itemCatalog[k].name === itemName);
+              if (catKey) {
+                const tmpl = itemCatalog[catKey];
+                inventory[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material };
+              } else {
+                inventory[idx] = null;
+              }
+            }
+          });
+        }
+        updateInventoryUI();
+
+        if (saveData.position) {
+          controls.getObject().position.set(saveData.position.x, saveData.position.y, saveData.position.z);
+        }
+
+        alert("Game Save Loaded!");
+      } catch (e) {
+        console.error("Save parse error:", e);
+        alert("Failed to load save file.");
+      }
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', saveGame);
+    document.getElementById('loadBtn').addEventListener('click', loadGame);
+
+    // Keyboard Controls
+    const onKeyDown = (e) => {
+      if (e.code === 'F10') {
+        e.preventDefault();
+        if (multiplayerMenu && multiplayerMenu.classList.contains('open')) closeMultiplayerMenu();
+        else openMultiplayerMenu();
+        return;
+      }
+
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        toggleInventory();
+        return;
+      }
+
+      if (e.code === 'Escape') {
+        if (multiplayerMenu && multiplayerMenu.classList.contains('open')) {
+          closeMultiplayerMenu();
+          return;
+        }
+        if (isShopOpen) closeShop();
+        if (isInventoryOpen) closeInventory();
+        return;
+      }
+
+      if (isShopOpen || isInventoryOpen) return;
+
+      switch (e.code) {
+        case 'KeyW': case 'ArrowUp': moveForward = true; break;
+        case 'KeyA': case 'ArrowLeft': moveLeft = true; break;
+        case 'KeyS': case 'ArrowDown': moveBackward = true; break;
+        case 'KeyD': case 'ArrowRight': moveRight = true; break;
+        case 'Space':
+          isSpacePressed = true;
+          const activeItem = inventory[selectedSlot];
+          if (!activeItem || !activeItem.name.includes('Helicopter')) performJump();
+          break;
+        case 'KeyE': handleInteraction(); break;
+        case 'KeyI': toggleInventory(); break;
+        case 'KeyF': useSelectedItem(); break;
+        case 'KeyQ': if (controls.isLocked) dropSelectedItem(); break;
+        case 'Digit1': selectedSlot = 0; updateInventoryUI(); break;
+        case 'Digit2': selectedSlot = 1; updateInventoryUI(); break;
+        case 'Digit3': selectedSlot = 2; updateInventoryUI(); break;
+        case 'Digit4': selectedSlot = 3; updateInventoryUI(); break;
+        case 'Digit5': selectedSlot = 4; updateInventoryUI(); break;
+      }
+    };
+
+    const onKeyUp = (e) => {
+      switch (e.code) {
+        case 'KeyW': case 'ArrowUp': moveForward = false; break;
+        case 'KeyA': case 'ArrowLeft': moveLeft = false; break;
+        case 'KeyS': case 'ArrowDown': moveBackward = false; break;
+        case 'KeyD': case 'ArrowRight': moveRight = false; break;
+        case 'Space': isSpacePressed = false; break;
+      }
+    };
+
+    window.addEventListener('wheel', (e) => {
+      if (!controls.isLocked || isShopOpen || isInventoryOpen) return;
+      if (e.deltaY > 0) selectedSlot = (selectedSlot + 1) % HOTBAR_SLOTS;
+      else if (e.deltaY < 0) selectedSlot = (selectedSlot - 1 + HOTBAR_SLOTS) % HOTBAR_SLOTS;
+      updateInventoryUI();
+    });
+
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+
+    // 4. Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+    sun.position.set(20, 40, 20);
+    scene.add(sun);
+
+    // 5. GLB MAP LOADING & PORTALS
+    let loadedModel = null;
+    let currentLoadedFileName = 'model.glb';
+    let isTeleporting = false;
+    let portalObjects = [];
+
+    function extractTargetFileName(objectName) {
+      let name = objectName.toLowerCase().trim().replace(/^portal[_-]?/i, '').replace(/[_-]?portal$/i, '').trim();
+      if (name && !name.endsWith('.glb') && !name.endsWith('.gltf')) name += '.glb';
+      if (!name || name === '.glb') return (currentLoadedFileName === 'model.glb') ? 'island.glb' : 'model.glb';
+      return name;
+    }
+
+    function detectPortalsInModel(gltfScene) {
+      portalObjects = [];
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('portal')) {
+          child.userData.targetFile = extractTargetFileName(child.name);
+          portalObjects.push(child);
+        }
+      });
+    }
+
+    function checkPortalCollisions() {
+      if (isTeleporting || portalObjects.length === 0) return;
+
+      const playerPos = controls.getObject().position;
+      const playerBox = new THREE.Box3(
+        new THREE.Vector3(playerPos.x - playerRadius, playerPos.y - playerHeight, playerPos.z - playerRadius),
+        new THREE.Vector3(playerPos.x + playerRadius, playerPos.y + playerHeight, playerPos.z + playerRadius)
+      );
+      const portalBox = new THREE.Box3();
+
+      for (const portal of portalObjects) {
+        portalBox.setFromObject(portal);
+        if (portalBox.intersectsBox(playerBox)) {
+          triggerPortalTeleport(portal.userData.targetFile || 'island.glb');
+          break;
+        }
+      }
+    }
+
+    function triggerPortalTeleport(targetFileName) {
+      isTeleporting = true;
+      loadModelFromURL(baseURL + targetFileName, targetFileName, (success) => {
+        if (!success) loadModelFromURL(targetFileName, targetFileName);
+        setTimeout(() => { isTeleporting = false; }, 2000);
+      });
+    }
+
+    function loadModelFromURL(url, displayName, onComplete) {
+      loadingStatus.textContent = `⏳ Loading ${displayName}...`;
+      loadingStatus.style.color = '#ffd700';
+
+      loader.load(
+        url,
+        (gltf) => {
+          if (loadedModel) scene.remove(loadedModel);
+          loadedModel = gltf.scene;
+          scene.add(loadedModel);
+
+          currentLoadedFileName = displayName;
+          clearEnemies();
+
+          detectSpawnersInModel(loadedModel);
+          setupShopFromGLTF(loadedModel);
+          setupGasStationsFromGLTF(loadedModel);
+          detectPortalsInModel(loadedModel);
+
+          const box = new THREE.Box3().setFromObject(loadedModel);
+          const center = box.getCenter(new THREE.Vector3());
+          const spawnY = Math.max(box.min.y + playerHeight + 0.5, playerHeight + 0.5);
+
+          if (portalObjects.length > 0) {
+            const portalCenter = new THREE.Box3().setFromObject(portalObjects[0]).getCenter(new THREE.Vector3());
+            controls.getObject().position.set(portalCenter.x + 2, spawnY, portalCenter.z + 2);
+          } else {
+            controls.getObject().position.set(center.x, spawnY, center.z);
+          }
+
+          loadingStatus.textContent = `✅ Loaded: ${displayName}`;
+          loadingStatus.style.color = '#28a745';
+          if (fileNameDisplay) fileNameDisplay.textContent = `Current Map: ${displayName}`;
+          if (onComplete) onComplete(true);
+        },
+        (xhr) => {
+          if (xhr.lengthComputable) {
+            loadingStatus.textContent = `⏳ Loading ${displayName} (${Math.round((xhr.loaded / xhr.total) * 100)}%)...`;
+          }
+        },
+        (error) => {
+          console.error('Error loading model:', error);
+          loadingStatus.textContent = `⚠️ Failed to load: ${displayName}`;
+          loadingStatus.style.color = '#ff4d4d';
+          if (!fallbackShop) fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
+          if (onComplete) onComplete(false);
+        }
+      );
+    }
+
+    loadModelFromURL(baseURL + 'model.glb', 'model.glb');
+
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      fileNameDisplay.textContent = `Local File: ${file.name}`;
+      loadModelFromURL(URL.createObjectURL(file), file.name);
+    });
+
+    // 6. Main Game Loop
+    let prevTime = performance.now();
+    let walkAnimTimer = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = performance.now();
+
+      if (controls.isLocked && time - lastBroadcast >= 50) {
+        broadcastTransform();
+        lastBroadcast = time;
+      }
+
+      if (controls.isLocked && !isShopOpen && !isInventoryOpen) {
+        const delta = Math.min((time - prevTime) / 1000, 0.1);
+
+        const currentItem = inventory[selectedSlot];
+        const isDrivingCar = currentItem && currentItem.name.includes('Car');
+        const isFlyingHelicopter = currentItem && currentItem.name.includes('Helicopter');
+        const isMoving = (moveForward || moveBackward || moveLeft || moveRight);
+
+        if (isSwinging) {
+          swingProgress += delta * swingSpeed;
+          const swingAngle = Math.sin(swingProgress) * 0.35;
+          viewmodelGroup.position.z = viewmodelBasePos.z + Math.sin(swingProgress) * 0.08;
+          viewmodelGroup.rotation.x = viewmodelBaseRot.x - swingAngle;
+
+          if (swingProgress >= Math.PI) {
+            isSwinging = false;
+            swingProgress = 0;
+            viewmodelGroup.position.copy(viewmodelBasePos);
+            viewmodelGroup.rotation.copy(viewmodelBaseRot);
+          }
+        }
+
+        for (let i = 0; i < itemsInWorld.length; i++) {
+          const item = itemsInWorld[i];
+          if (item.userData.hasGravity) {
+            if (item.userData.velocityY === undefined) item.userData.velocityY = 0;
+
+            item.userData.velocityY -= 18.0 * delta;
+            item.position.y += item.userData.velocityY * delta;
+
+            let groundY = 0.2;
+            if (loadedModel) {
+              const ray = new THREE.Raycaster(
+                new THREE.Vector3(item.position.x, item.position.y + 1.0, item.position.z),
+                new THREE.Vector3(0, -1, 0)
+              );
+              const hits = ray.intersectObject(loadedModel, true);
+              if (hits.length > 0) groundY = hits[0].point.y + 0.2;
+            }
+
+            if (item.position.y <= groundY) {
+              item.position.y = groundY;
+              item.userData.velocityY = 0;
+              item.userData.hasGravity = false;
+            }
+          }
+
+          if (item.userData.isCoin) {
+            item.rotation.z += delta * 3.0;
+          } else {
+            item.rotation.y += delta * 1.5;
+          }
+        }
+
+        let currentMoveSpeed = moveSpeed;
+
+        if (isFlyingHelicopter) {
+          if (playerFuel > 0) {
+            currentMoveSpeed = moveSpeed * 2.5;
+
+            if (isSpacePressed) {
+              velocity.y = Math.min(velocity.y + 35.0 * delta, 12.0);
+              playerFuel = Math.max(0, playerFuel - 3.0 * delta);
+              updateFuelHUD();
+            } else {
+              if (velocity.y < -3.0) velocity.y = -3.0;
+            }
+
+            if (isMoving) {
+              playerFuel = Math.max(0, playerFuel - 1.5 * delta);
+              updateFuelHUD();
+            }
+          } else {
+            currentMoveSpeed = moveSpeed;
+          }
+        } else if (isDrivingCar) {
+          if (playerFuel > 0) {
+            currentMoveSpeed = moveSpeed * 3.0;
+            if (isMoving) {
+              playerFuel = Math.max(0, playerFuel - 2.0 * delta); 
+              updateFuelHUD();
+            }
+          } else {
+            currentMoveSpeed = moveSpeed; 
+          }
+        }
+
+        if (heldMesh && isFlyingHelicopter) {
+          heldMesh.traverse((child) => {
+            if (child.name === 'mainRotor') child.rotation.y += delta * 30.0;
+            if (child.name === 'tailRotor') child.rotation.x += delta * 35.0;
+          });
+        }
+
+        const damping = isGrounded ? groundDamping : airDamping;
+        velocity.x -= velocity.x * damping * delta;
+        velocity.z -= velocity.z * damping * delta;
+
+        if (!isFlyingHelicopter) {
+          if (velocity.y < 0) velocity.y -= gravity * fallMultiplier * delta;
+          else velocity.y -= gravity * delta;
+        }
+
+        velocity.y = Math.max(velocity.y, terminalVelocity);
+
+        direction.z = Number(moveForward) - Number(moveBackward);
+        direction.x = Number(moveRight) - Number(moveLeft);
+        direction.normalize();
+
+        const accel = isGrounded ? currentMoveSpeed : currentMoveSpeed * 0.3;
+        if (moveForward || moveBackward) velocity.z -= direction.z * accel * delta * 10;
+        if (moveLeft || moveRight) velocity.x -= direction.x * accel * delta * 10;
+
+        const targets = loadedModel ? [loadedModel] : [];
+        const oldPos = controls.getObject().position.clone();
+
+        controls.moveRight(-velocity.x * delta);
+        controls.moveForward(-velocity.z * delta);
+
+        const newPos = controls.getObject().position.clone();
+        const moveDir = new THREE.Vector3().subVectors(newPos, oldPos);
+        const moveDist = moveDir.length();
+
+        if (moveDist > 0.0001 && targets.length > 0) {
+          moveDir.normalize();
+          const chestPos = oldPos.clone();
+          chestPos.y = oldPos.y - playerHeight + maxStepHeight + 0.05;
+
+          raycasterHorizontal.set(chestPos, moveDir);
+          const wallHits = raycasterHorizontal.intersectObjects(targets, true);
+
+          if (wallHits.length > 0 && wallHits[0].distance < playerRadius) {
+            controls.getObject().position.x = oldPos.x;
+            controls.getObject().position.z = oldPos.z;
+          }
+        }
+
+        controls.getObject().position.y += velocity.y * delta;
+        isGrounded = false;
+
+        if (targets.length > 0) {
+          raycasterDown.set(controls.getObject().position, new THREE.Vector3(0, -1, 0));
+          const surfaceHits = raycasterDown.intersectObjects(targets, true);
+
+          if (surfaceHits.length > 0) {
+            const hit = surfaceHits[0];
+            if (hit.distance <= playerHeight + maxStepHeight && velocity.y <= 0) {
+              let isBounceMesh = false;
+              hit.object.traverseAncestors((ancestor) => {
+                if (ancestor.name && ancestor.name.toLowerCase().includes('bounce')) {
+                  isBounceMesh = true;
+                }
+              });
+              if (hit.object.name && hit.object.name.toLowerCase().includes('bounce')) {
+                isBounceMesh = true;
+              }
+
+              if (isBounceMesh) {
+                velocity.y = Math.sqrt(2 * gravity * 10);
+                canJump = false;
+                isGrounded = false;
+              } else {
+                controls.getObject().position.y = THREE.MathUtils.lerp(controls.getObject().position.y, hit.point.y + playerHeight, 0.5);
+                velocity.y = 0;
+                canJump = true;
+                isGrounded = true;
+              }
+            }
+          }
+        } else {
+          if (controls.getObject().position.y <= playerHeight) {
+            controls.getObject().position.y = playerHeight;
+            velocity.y = 0;
+            canJump = true;
+            isGrounded = true;
+          }
+        }
+
+        if (controls.getObject().position.y < -30) respawnPlayer();
+
+        const isMovingGrounded = isMoving && isGrounded;
+
+        if (isMovingGrounded) {
+          walkAnimTimer += delta * 14;
+        }
+
+        // --- ARROW PROJECTILES PHYSICS & COLLISION ---
+        for (let i = playerProjectiles.length - 1; i >= 0; i--) {
+          const proj = playerProjectiles[i];
+
+          if (proj.stuck) {
+            proj.life -= delta;
+            if (proj.life <= 0) {
+              scene.remove(proj.mesh);
+              playerProjectiles.splice(i, 1);
+            }
+            continue;
+          }
+
+          proj.life -= delta;
+          if (proj.life <= 0) {
+            scene.remove(proj.mesh);
+            playerProjectiles.splice(i, 1);
+            continue;
+          }
+
+          proj.velocity.y -= 12.0 * delta;
+
+          const oldArrowPos = proj.mesh.position.clone();
+          const moveStep = proj.velocity.clone().multiplyScalar(delta);
+          proj.mesh.position.add(moveStep);
+
+          const travelTarget = proj.mesh.position.clone().add(proj.velocity);
+          proj.mesh.lookAt(travelTarget);
+
+          let hitSomething = false;
+
+          for (let e = enemies.length - 1; e >= 0; e--) {
+            const enemy = enemies[e];
+            const dist = proj.mesh.position.distanceTo(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.75, 0)));
+
+            if (dist < 1.0) {
+              enemy.health -= 35;
+              hitSomething = true;
+
+              enemy.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    if (mat && mat.color) {
+                      const orig = mat.color.getHex();
+                      mat.color.setHex(0xffffff);
+                      setTimeout(() => { if (mat && mat.color) mat.color.setHex(orig); }, 120);
+                    }
+                  });
+                }
+              });
+
+              if (enemy.health <= 0) {
+                spawnCoinAt(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.3, 0)));
+                addXP(25);
+                scene.remove(enemy.mesh);
+                enemies.splice(e, 1);
+              }
+              break;
+            }
+          }
+
+          if (!hitSomething) {
+            for (let h = enemyHelicopters.length - 1; h >= 0; h--) {
+              const heli = enemyHelicopters[h];
+              const dist = proj.mesh.position.distanceTo(heli.mesh.position);
+
+              if (dist < 2.2) {
+                heli.health -= 45;
+                hitSomething = true;
+
+                heli.mesh.traverse((child) => {
+                  if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach((mat) => {
+                      if (mat && mat.color) {
+                        const orig = mat.color.getHex();
+                        mat.color.setHex(0xff0000);
+                        setTimeout(() => { if (mat && mat.color) mat.color.setHex(orig); }, 120);
+                      }
+                    });
+                  }
+                });
+
+                if (heli.health <= 0) {
+                  spawnCoinAt(heli.mesh.position.clone());
+                  spawnCoinAt(heli.mesh.position.clone().add(new THREE.Vector3(0.5, 0, 0)));
+                  addXP(50);
+                  scene.remove(heli.mesh);
+                  enemyHelicopters.splice(h, 1);
+                }
+                break;
+              }
+            }
+          }
+
+          if (!hitSomething && loadedModel) {
+            const stepLen = moveStep.length();
+            const ray = new THREE.Raycaster(oldArrowPos, moveStep.clone().normalize(), 0, stepLen + 0.1);
+            const hits = ray.intersectObject(loadedModel, true);
+
+            if (hits.length > 0) {
+              proj.stuck = true;
+              proj.life = 6.0;
+              proj.mesh.position.copy(hits[0].point);
+              hitSomething = true;
+            }
+          }
+
+          if (hitSomething && !proj.stuck) {
+            scene.remove(proj.mesh);
+            playerProjectiles.splice(i, 1);
+          }
+        }
+
+        // --- ENEMY HELICOPTER SKY PATROL & AI LOGIC ---
+        const playerPos = controls.getObject().position;
+
+        enemyHelicopters.forEach((heli) => {
+          heli.mainRotor.rotation.y += delta * 25.0;
+          heli.tailRotor.rotation.x += delta * 30.0;
+
+          const distToPlayer = heli.mesh.position.distanceTo(playerPos);
+          let targetDest = heli.targetWaypoint;
+
+          if (distToPlayer < 35.0) {
+            targetDest = new THREE.Vector3(playerPos.x, heli.altitude, playerPos.z);
+
+            if (time - heli.lastShootTime > heli.shootCooldown) {
+              heli.lastShootTime = time;
+              heliShootLaser(heli, playerPos);
+            }
+          } else {
+            if (heli.mesh.position.distanceTo(heli.targetWaypoint) < 3.0) {
+              const nextPoint = getRandomPointInRadius(heli.spawnerCenter, HELI_PATROL_RADIUS);
+              heli.targetWaypoint.set(nextPoint.x, heli.altitude, nextPoint.z);
+            }
+          }
+
+          const moveDir = targetDest.clone().sub(heli.mesh.position);
+          moveDir.y = 0; 
+
+          if (moveDir.length() > 0.5) {
+            moveDir.normalize();
+            heli.mesh.position.addScaledVector(moveDir, heli.speed * delta);
+
+            const lookTarget = heli.mesh.position.clone().add(moveDir);
+            heli.mesh.lookAt(lookTarget);
+            heli.mesh.rotation.x = 0.12; 
+          } else {
+            heli.mesh.rotation.x = THREE.MathUtils.lerp(heli.mesh.rotation.x, 0, 0.05);
+          }
+        });
+
+        for (let i = heliProjectiles.length - 1; i >= 0; i--) {
+          const proj = heliProjectiles[i];
+          proj.life -= delta;
+          proj.mesh.position.addScaledVector(proj.direction, proj.speed * delta);
+
+          const projDist = proj.mesh.position.distanceTo(playerPos);
+          if (projDist < 0.9) {
+            takeDamage(12);
+            scene.remove(proj.mesh);
+            heliProjectiles.splice(i, 1);
+            continue;
+          }
+
+          if (proj.life <= 0) {
+            scene.remove(proj.mesh);
+            heliProjectiles.splice(i, 1);
+          }
+        }
+
+        for (let i = 0; i < enemies.length; i++) {
+          const enemy = enemies[i];
+          const distToPlayer = enemy.mesh.position.distanceTo(playerPos);
+
+          if (distToPlayer < 20.0) {
+            const moveDir = playerPos.clone().sub(enemy.mesh.position);
+            moveDir.y = 0;
+            if (moveDir.length() > 0.8) {
+              moveDir.normalize();
+              enemy.mesh.position.addScaledVector(moveDir, enemy.speed * delta);
+              enemy.mesh.lookAt(playerPos.x, enemy.mesh.position.y, playerPos.z);
+            }
+
+            if (distToPlayer < 1.5 && time - enemy.lastAttackTime > 1200) {
+              enemy.lastAttackTime = time;
+              takeDamage(15);
+            }
+          }
+        }
+
+        raycasterInteract.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const intersects = raycasterInteract.intersectObjects(interactableObjects, true);
+
+        if (intersects.length > 0 && intersects[0].distance < 3.5) {
+          let topObj = intersects[0].object;
+          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem) {
+            topObj = topObj.parent;
+          }
+
+          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem) {
+            hoveredObject = topObj;
+            promptItemName.textContent = topObj.userData.name || 'Item';
+            interactionPrompt.style.display = 'block';
+          } else {
+            hoveredObject = null;
+            interactionPrompt.style.display = 'none';
+          }
+        } else {
+          hoveredObject = null;
+          interactionPrompt.style.display = 'none';
+        }
+
+        checkPortalCollisions();
+      }
+
+      prevTime = time;
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>
