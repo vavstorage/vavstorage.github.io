@@ -1873,6 +1873,7 @@
     let hoveredObject = null;
     let fallbackShop = null;
     let fallbackVavite = null;
+    let fallbackIronOre = null;
 
     // --- Fossil mining state ---
     let miningTarget = null;
@@ -1960,6 +1961,12 @@
         icon: '🔮',
         geometry: new THREE.IcosahedronGeometry(0.24),
         material: new THREE.MeshStandardMaterial({ color: 0x8a2be2, roughness: 0.25, metalness: 0.6, emissive: 0x4b0082, emissiveIntensity: 0.5 })
+      },
+      iron_ore: {
+        name: 'Iron Ore',
+        icon: '🪨',
+        geometry: new THREE.DodecahedronGeometry(0.24),
+        material: new THREE.MeshStandardMaterial({ color: 0x8a6d5b, roughness: 0.85, metalness: 0.35 })
       }
     };
 
@@ -2097,6 +2104,44 @@
       }
     }
 
+    // A rocky ore deposit used when the loaded map has no "iron"-named object
+    // of its own, so mining iron ore always works out of the box.
+    function createFallbackIronOreDeposit(position) {
+      const template = itemCatalog.iron_ore;
+      const depositGroup = new THREE.Group();
+
+      const rock = new THREE.Mesh(template.geometry, template.material);
+      rock.scale.set(2.6, 2.2, 2.6);
+      rock.position.y = 0.5;
+      rock.rotation.set(0.4, 0.6, 0.1);
+      depositGroup.add(rock);
+
+      depositGroup.position.copy(position);
+      depositGroup.traverse((child) => {
+        child.userData.isIronOre = true;
+        child.userData.isMineable = true;
+        child.userData.mineralKey = 'iron_ore';
+        child.userData.name = 'Iron Ore Deposit';
+      });
+
+      scene.add(depositGroup);
+      interactableObjects.push(depositGroup);
+      return depositGroup;
+    }
+
+    function removeFallbackIronOre() {
+      if (fallbackIronOre) {
+        scene.remove(fallbackIronOre);
+        fallbackIronOre.traverse((child) => {
+          const idx = interactableObjects.indexOf(child);
+          if (idx > -1) interactableObjects.splice(idx, 1);
+        });
+        const idx = interactableObjects.indexOf(fallbackIronOre);
+        if (idx > -1) interactableObjects.splice(idx, 1);
+        fallbackIronOre = null;
+      }
+    }
+
     function setupShopFromGLTF(gltfScene) {
       for (let i = interactableObjects.length - 1; i >= 0; i--) {
         if (interactableObjects[i].userData && interactableObjects[i].userData.isGLBShop) {
@@ -2218,6 +2263,43 @@
       // mining vavite always works, regardless of the loaded model.
       if (!foundVavite) {
         fallbackVavite = createFallbackVaviteDeposit(new THREE.Vector3(-3, 0, -3));
+      }
+    }
+
+    // --- IRON ORE DETECTION (mine & pick up) ---
+    function setupIronOreFromGLTF(gltfScene) {
+      for (let i = interactableObjects.length - 1; i >= 0; i--) {
+        if (interactableObjects[i].userData && interactableObjects[i].userData.isIronOre) {
+          interactableObjects.splice(i, 1);
+        }
+      }
+
+      removeFallbackIronOre();
+
+      let foundIronOre = false;
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('iron')) {
+          foundIronOre = true;
+          const displayName = child.name.replace(/_/g, ' ') || 'Iron Ore';
+          child.traverse((subChild) => {
+            subChild.userData.isIronOre = true;
+            subChild.userData.isMineable = true;
+            subChild.userData.mineralKey = 'iron_ore';
+            subChild.userData.name = displayName;
+            if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
+          });
+          child.userData.isIronOre = true;
+          child.userData.isMineable = true;
+          child.userData.mineralKey = 'iron_ore';
+          child.userData.name = displayName;
+          if (!interactableObjects.includes(child)) interactableObjects.push(child);
+        }
+      });
+
+      // No iron-named object in the map itself - drop in a fallback deposit so
+      // mining iron ore always works, regardless of the loaded model.
+      if (!foundIronOre) {
+        fallbackIronOre = createFallbackIronOreDeposit(new THREE.Vector3(3, 0, 3));
       }
     }
 
@@ -2803,6 +2885,7 @@
           setupGasStationsFromGLTF(loadedModel);
           setupFossilsFromGLTF(loadedModel);
           setupVaviteFromGLTF(loadedModel);
+          setupIronOreFromGLTF(loadedModel);
           detectPortalsInModel(loadedModel);
 
           const box = new THREE.Box3().setFromObject(loadedModel);
