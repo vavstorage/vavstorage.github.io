@@ -215,6 +215,23 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     }
 
+    #mining-progress-track {
+      display: none;
+      width: 180px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      margin: 8px auto 0;
+      overflow: hidden;
+    }
+
+    #mining-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd700, #ff8c00);
+      border-radius: 3px;
+    }
+
     /* Inventory HUD */
     #inventory-bar {
       position: absolute;
@@ -671,7 +688,10 @@
     <div id="inv-hud-btn" class="hud-box">🎒 Inventory [I]</div>
   </div>
 
-  <div id="interaction-prompt">Press <b>E</b> to interact with <span id="prompt-item-name" style="color: #28a745; font-weight: bold;">Item</span></div>
+  <div id="interaction-prompt">
+    <div><span id="prompt-action-text">Press <b>E</b> to interact with</span> <span id="prompt-item-name" style="color: #28a745; font-weight: bold;">Item</span></div>
+    <div id="mining-progress-track"><div id="mining-progress-bar"></div></div>
+  </div>
 
   <div id="inventory-bar">
     <div class="slot active" data-slot="0"><span class="slot-num">1</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
@@ -1814,9 +1834,18 @@
     let hoveredObject = null;
     let fallbackShop = null;
 
+    // --- Fossil mining state ---
+    let miningTarget = null;
+    let miningStartTime = 0;
+    let isEKeyDown = false;
+    const MINE_DURATION_MS = 2000;
+
     const coinCountDisplay = document.getElementById('coin-count');
     const interactionPrompt = document.getElementById('interaction-prompt');
     const promptItemName = document.getElementById('prompt-item-name');
+    const promptActionText = document.getElementById('prompt-action-text');
+    const miningProgressTrack = document.getElementById('mining-progress-track');
+    const miningProgressBar = document.getElementById('mining-progress-bar');
     const innerGridEl = document.getElementById('inner-grid');
     const hotbarGridEl = document.getElementById('hotbar-grid');
 
@@ -1878,6 +1907,12 @@
         icon: '🧪',
         geometry: new THREE.SphereGeometry(0.2, 16, 16),
         material: new THREE.MeshStandardMaterial({ color: 0xff0055, roughness: 0.2 })
+      },
+      fossil: {
+        name: 'Fossil',
+        icon: '🦴',
+        geometry: new THREE.DodecahedronGeometry(0.22),
+        material: new THREE.MeshStandardMaterial({ color: 0xc2a878, roughness: 0.9, metalness: 0.05 })
       }
     };
 
@@ -2027,6 +2062,31 @@
           });
           child.userData.isGasStation = true;
           child.userData.name = displayName;
+          if (!interactableObjects.includes(child)) interactableObjects.push(child);
+        }
+      });
+    }
+
+    // --- FOSSIL DETECTION (mine & pick up) ---
+    function setupFossilsFromGLTF(gltfScene) {
+      for (let i = interactableObjects.length - 1; i >= 0; i--) {
+        if (interactableObjects[i].userData && interactableObjects[i].userData.isFossil) {
+          interactableObjects.splice(i, 1);
+        }
+      }
+
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('fossil')) {
+          const displayName = child.name.replace(/_/g, ' ') || 'Fossil';
+          child.traverse((subChild) => {
+            subChild.userData.isFossil = true;
+            subChild.userData.name = displayName;
+            subChild.userData.fossilRoot = child;
+            if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
+          });
+          child.userData.isFossil = true;
+          child.userData.name = displayName;
+          child.userData.fossilRoot = child;
           if (!interactableObjects.includes(child)) interactableObjects.push(child);
         }
       });
@@ -2184,6 +2244,7 @@
       if (controls.isLocked) controls.unlock();
       shopModal.style.display = 'flex';
       interactionPrompt.style.display = 'none';
+      cancelMining();
     }
 
     function closeShop() {
@@ -2198,6 +2259,7 @@
       if (controls.isLocked) controls.unlock();
       inventoryModal.style.display = 'flex';
       interactionPrompt.style.display = 'none';
+      cancelMining();
       updateInventoryUI();
     }
 
@@ -2248,6 +2310,45 @@
         else if (hoveredObject.userData.isGasStation) refuelPlayer(200);
         else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
       }
+    }
+
+    // --- FOSSIL MINING ---
+    function startMining(fossilMesh) {
+      miningTarget = fossilMesh;
+      miningStartTime = performance.now();
+      if (miningProgressBar) miningProgressBar.style.width = '0%';
+      if (miningProgressTrack) miningProgressTrack.style.display = 'block';
+    }
+
+    function cancelMining() {
+      miningTarget = null;
+      if (miningProgressBar) miningProgressBar.style.width = '0%';
+      if (miningProgressTrack) miningProgressTrack.style.display = 'none';
+    }
+
+    function mineFossil(fossilMesh) {
+      const template = itemCatalog.fossil;
+      const added = addItemToInventory({
+        name: fossilMesh.userData.name || template.name,
+        icon: template.icon,
+        geometry: template.geometry,
+        material: template.material
+      });
+
+      cancelMining();
+      if (!added) return; // Inventory full - fossil stays put, try again after freeing a slot
+
+      const root = fossilMesh.userData.fossilRoot || fossilMesh;
+      scene.remove(root);
+      root.traverse((c) => {
+        const idx = interactableObjects.indexOf(c);
+        if (idx > -1) interactableObjects.splice(idx, 1);
+      });
+      const rootIdx = interactableObjects.indexOf(root);
+      if (rootIdx > -1) interactableObjects.splice(rootIdx, 1);
+
+      hoveredObject = null;
+      interactionPrompt.style.display = 'none';
     }
 
     // --- SAVE / LOAD GAME SYSTEM ---
@@ -2365,7 +2466,14 @@
           const activeItem = inventory[selectedSlot];
           if (!activeItem || !activeItem.name.includes('Helicopter')) performJump();
           break;
-        case 'KeyE': handleInteraction(); break;
+        case 'KeyE':
+          isEKeyDown = true;
+          if (hoveredObject && hoveredObject.userData.isFossil) {
+            if (miningTarget !== hoveredObject) startMining(hoveredObject);
+          } else {
+            handleInteraction();
+          }
+          break;
         case 'KeyI': toggleInventory(); break;
         case 'KeyF': useSelectedItem(); break;
         case 'KeyQ': if (controls.isLocked) dropSelectedItem(); break;
@@ -2384,6 +2492,7 @@
         case 'KeyS': case 'ArrowDown': moveBackward = false; break;
         case 'KeyD': case 'ArrowRight': moveRight = false; break;
         case 'Space': isSpacePressed = false; break;
+        case 'KeyE': isEKeyDown = false; cancelMining(); break;
       }
     };
 
@@ -2470,6 +2579,7 @@
           detectSpawnersInModel(loadedModel);
           setupShopFromGLTF(loadedModel);
           setupGasStationsFromGLTF(loadedModel);
+          setupFossilsFromGLTF(loadedModel);
           detectPortalsInModel(loadedModel);
 
           const box = new THREE.Box3().setFromObject(loadedModel);
@@ -2965,13 +3075,16 @@ if (targets.length > 0) {
 
         if (intersects.length > 0 && intersects[0].distance < 3.5) {
           let topObj = intersects[0].object;
-          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem) {
+          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem && !topObj.userData.isFossil) {
             topObj = topObj.parent;
           }
 
-          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem) {
+          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem || topObj.userData.isFossil) {
             hoveredObject = topObj;
             promptItemName.textContent = topObj.userData.name || 'Item';
+            if (promptActionText) {
+              promptActionText.innerHTML = topObj.userData.isFossil ? 'Hold <b>E</b> to mine' : 'Press <b>E</b> to interact with';
+            }
             interactionPrompt.style.display = 'block';
           } else {
             hoveredObject = null;
@@ -2980,6 +3093,17 @@ if (targets.length > 0) {
         } else {
           hoveredObject = null;
           interactionPrompt.style.display = 'none';
+        }
+
+        // Drive the mining progress bar while E is held on a fossil
+        if (miningTarget) {
+          if (!isEKeyDown || hoveredObject !== miningTarget) {
+            cancelMining();
+          } else {
+            const progress = Math.min((time - miningStartTime) / MINE_DURATION_MS, 1);
+            if (miningProgressBar) miningProgressBar.style.width = (progress * 100) + '%';
+            if (progress >= 1) mineFossil(miningTarget);
+          }
         }
 
         checkPortalCollisions();
