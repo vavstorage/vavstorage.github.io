@@ -1247,6 +1247,31 @@
       return true;
     }
 
+    // --- GAS STATION COST ---
+    const GAS_STATION_COIN_COST = 10;
+    const GAS_STATION_FOSSIL_COST = 2;
+
+    function refuelAtStation() {
+      if (playerFuel >= maxPlayerFuel) {
+        alert("Fuel tank is already full!");
+        return;
+      }
+
+      const fossilsHeld = countFossils();
+      if (playerCoins < GAS_STATION_COIN_COST || fossilsHeld < GAS_STATION_FOSSIL_COST) {
+        alert(
+          `Refueling costs ${GAS_STATION_COIN_COST} 🪙 and ${GAS_STATION_FOSSIL_COST} 🦴 Fossils.\n` +
+          `You have ${playerCoins} 🪙 and ${fossilsHeld} 🦴 Fossil${fossilsHeld === 1 ? '' : 's'}.`
+        );
+        return;
+      }
+
+      playerCoins -= GAS_STATION_COIN_COST;
+      updateCoinHUD();
+      removeFossils(GAS_STATION_FOSSIL_COST);
+      refuelPlayer(200);
+    }
+
     function addArrows(amount) {
       playerArrows += amount;
       updateArrowHUD();
@@ -1258,22 +1283,29 @@
       const item = inventory[selectedSlot];
       if (!item) return;
 
+      // Consume one unit from the stack; only clear the slot once it's empty
+      const consumeOne = () => {
+        if ((item.quantity || 1) > 1) {
+          item.quantity -= 1;
+        } else {
+          inventory[selectedSlot] = null;
+        }
+        updateInventoryUI();
+      };
+
       if (item.name.includes('Potion')) {
         if (healPlayer(35)) {
-          inventory[selectedSlot] = null;
-          updateInventoryUI();
+          consumeOne();
         } else {
           alert("Health is already full!");
         }
       } else if (item.name.includes('Fuel Tank')) {
-        if (refuelPlayer(100)) { 
-          inventory[selectedSlot] = null;
-          updateInventoryUI();
+        if (refuelPlayer(100)) {
+          consumeOne();
         }
       } else if (item.name.includes('Arrow Bundle')) {
         addArrows(15);
-        inventory[selectedSlot] = null;
-        updateInventoryUI();
+        consumeOne();
       }
     }
 
@@ -2054,7 +2086,7 @@
 
       gltfScene.traverse((child) => {
         if (child.name && child.name.toLowerCase().includes('gas')) {
-          const displayName = 'Gas Station';
+          const displayName = 'Gas Station (10 🪙 + 2 🦴)';
           child.traverse((subChild) => {
             subChild.userData.isGasStation = true;
             subChild.userData.name = displayName;
@@ -2127,7 +2159,7 @@
         slotEl.innerHTML = `
           <span class="inv-slot-num">${i + 1}</span>
           <span style="font-size: 20px;">${item ? (item.icon || '📦') : ''}</span>
-          <span class="slot-name" style="font-size: 8px;">${item ? item.name : ''}</span>
+          <span class="slot-name" style="font-size: 8px;">${item ? item.name + ((item.quantity || 1) > 1 ? ' x' + item.quantity : '') : ''}</span>
         `;
         slotEl.addEventListener('click', () => handleSlotClickInModal(i));
         innerGridEl.appendChild(slotEl);
@@ -2140,7 +2172,7 @@
         slotEl.innerHTML = `
           <span class="inv-slot-num">${i + 1}</span>
           <span style="font-size: 20px;">${item ? (item.icon || '📦') : ''}</span>
-          <span class="slot-name" style="font-size: 8px;">${item ? item.name : ''}</span>
+          <span class="slot-name" style="font-size: 8px;">${item ? item.name + ((item.quantity || 1) > 1 ? ' x' + item.quantity : '') : ''}</span>
         `;
         slotEl.addEventListener('click', () => handleSlotClickInModal(i));
         hotbarGridEl.appendChild(slotEl);
@@ -2157,7 +2189,7 @@
 
         if (item) {
           iconEl.textContent = item.icon || '📦';
-          nameEl.textContent = item.name;
+          nameEl.textContent = item.name + ((item.quantity || 1) > 1 ? ` x${item.quantity}` : '');
         } else {
           iconEl.textContent = '';
           nameEl.textContent = 'Empty';
@@ -2180,18 +2212,13 @@
         playerCoins += 10;
         updateCoinHUD();
       } else {
-        const emptyIndex = findFirstEmptySlot();
-        if (emptyIndex === -1) {
-          alert("Inventory Full!");
-          return;
-        }
-        inventory[emptyIndex] = {
+        const added = addItemToInventory({
           name: itemMesh.userData.name,
           icon: itemMesh.userData.icon,
           geometry: itemMesh.geometry,
           material: itemMesh.material
-        };
-        updateInventoryUI();
+        });
+        if (!added) return; // stays in the world if inventory is full
       }
 
       scene.remove(itemMesh);
@@ -2204,7 +2231,15 @@
       interactionPrompt.style.display = 'none';
     }
 
-    function addItemToInventory(itemData) {
+    function addItemToInventory(itemData, quantity = 1) {
+      // Stack onto an existing slot of the same item instead of always using a new one
+      const existingIndex = inventory.findIndex(slot => slot && slot.name === itemData.name);
+      if (existingIndex !== -1) {
+        inventory[existingIndex].quantity = (inventory[existingIndex].quantity || 1) + quantity;
+        updateInventoryUI();
+        return true;
+      }
+
       const emptyIndex = findFirstEmptySlot();
       if (emptyIndex === -1) {
         alert("Inventory Full! Drop or move an item first.");
@@ -2214,10 +2249,42 @@
         name: itemData.name,
         icon: itemData.icon,
         geometry: itemData.geometry,
-        material: itemData.material
+        material: itemData.material,
+        quantity: quantity
       };
       updateInventoryUI();
       return true;
+    }
+
+    // Total number of fossils currently held (across any stacked slot)
+    function countFossils() {
+      return inventory.reduce((total, slot) => {
+        if (slot && slot.name && slot.name.toLowerCase().includes('fossil')) {
+          return total + (slot.quantity || 1);
+        }
+        return total;
+      }, 0);
+    }
+
+    // Removes up to `amount` fossils from inventory, clearing/decrementing slots as needed.
+    // Returns true if the full amount was removed.
+    function removeFossils(amount) {
+      let remaining = amount;
+      for (let i = 0; i < TOTAL_SLOTS && remaining > 0; i++) {
+        const slot = inventory[i];
+        if (slot && slot.name && slot.name.toLowerCase().includes('fossil')) {
+          const have = slot.quantity || 1;
+          if (have <= remaining) {
+            remaining -= have;
+            inventory[i] = null;
+          } else {
+            slot.quantity = have - remaining;
+            remaining = 0;
+          }
+        }
+      }
+      updateInventoryUI();
+      return remaining === 0;
     }
 
     function dropSelectedItem() {
@@ -2235,7 +2302,12 @@
       const droppedItem = spawnWorldItem(itemData.name, itemData.icon, itemData.geometry, itemData.material, dropPos);
       droppedItem.userData.velocityY = 2.0;
 
-      inventory[selectedSlot] = null;
+      // Drop one unit from the stack; only clear the slot once it's empty
+      if ((itemData.quantity || 1) > 1) {
+        itemData.quantity -= 1;
+      } else {
+        inventory[selectedSlot] = null;
+      }
       updateInventoryUI();
     }
 
@@ -2307,7 +2379,7 @@
     function handleInteraction() {
       if (hoveredObject && controls.isLocked) {
         if (hoveredObject.userData.isShop) openShop();
-        else if (hoveredObject.userData.isGasStation) refuelPlayer(200);
+        else if (hoveredObject.userData.isGasStation) refuelAtStation();
         else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
       }
     }
@@ -2328,27 +2400,29 @@
 
     function mineFossil(fossilMesh) {
       const template = itemCatalog.fossil;
+      // Always use the generic "Fossil" name/icon (not the GLTF node's own name) so that
+      // every fossil mined stacks together into one inventory slot instead of scattering
+      // across separate slots.
       const added = addItemToInventory({
-        name: fossilMesh.userData.name || template.name,
+        name: template.name,
         icon: template.icon,
         geometry: template.geometry,
         material: template.material
       });
 
-      cancelMining();
-      if (!added) return; // Inventory full - fossil stays put, try again after freeing a slot
+      if (!added) {
+        cancelMining(); // Inventory full - fossil stays put, try again after freeing a slot
+        return;
+      }
 
-      const root = fossilMesh.userData.fossilRoot || fossilMesh;
-      scene.remove(root);
-      root.traverse((c) => {
-        const idx = interactableObjects.indexOf(c);
-        if (idx > -1) interactableObjects.splice(idx, 1);
-      });
-      const rootIdx = interactableObjects.indexOf(root);
-      if (rootIdx > -1) interactableObjects.splice(rootIdx, 1);
-
-      hoveredObject = null;
-      interactionPrompt.style.display = 'none';
+      // The fossil deposit is never removed, so it can be mined again and again.
+      // If the player is still holding E while looking at it, loop straight into
+      // another mining cycle instead of requiring a fresh key press each time.
+      if (isEKeyDown && hoveredObject === fossilMesh) {
+        startMining(fossilMesh);
+      } else {
+        cancelMining();
+      }
     }
 
     // --- SAVE / LOAD GAME SYSTEM ---
@@ -2362,7 +2436,7 @@
         fuel: playerFuel,
         arrows: playerArrows,
         map: currentLoadedFileName,
-        inventory: inventory.map(item => item ? item.name : null),
+        inventory: inventory.map(item => item ? { name: item.name, quantity: item.quantity || 1 } : null),
         position: {
           x: controls.getObject().position.x,
           y: controls.getObject().position.y,
@@ -2398,15 +2472,19 @@
         updateArrowHUD();
 
         if (Array.isArray(saveData.inventory)) {
-          saveData.inventory.forEach((itemName, idx) => {
+          saveData.inventory.forEach((entry, idx) => {
             if (idx >= TOTAL_SLOTS) return;
-            if (!itemName) {
+            if (!entry) {
               inventory[idx] = null;
             } else {
+              // Support both the old save format (plain item name string) and the
+              // newer { name, quantity } format for stacked items.
+              const itemName = (typeof entry === 'string') ? entry : entry.name;
+              const quantity = (typeof entry === 'object' && entry.quantity) ? entry.quantity : 1;
               const catKey = Object.keys(itemCatalog).find(k => itemCatalog[k].name === itemName);
               if (catKey) {
                 const tmpl = itemCatalog[catKey];
-                inventory[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material };
+                inventory[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material, quantity: quantity };
               } else {
                 inventory[idx] = null;
               }
