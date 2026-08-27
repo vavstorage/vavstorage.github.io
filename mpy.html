@@ -1523,6 +1523,7 @@
     const airDamping = 2.0;          
 
     const raycasterDown = new THREE.Raycaster();
+    const raycasterUp = new THREE.Raycaster();
     const raycasterHorizontal = new THREE.Raycaster();
     const raycasterInteract = new THREE.Raycaster();
 
@@ -2516,6 +2517,37 @@
     let prevTime = performance.now();
     let walkAnimTimer = 0;
 
+   function checkWallCollision(startPos, moveVector, targets) {
+  const dist = moveVector.length();
+  if (dist < 0.0001 || targets.length === 0) return false;
+  
+  const moveDir = moveVector.clone().normalize();
+  const heights = [
+    startPos.y - playerHeight + maxStepHeight + 0.1,
+    startPos.y,
+    startPos.y + playerHeight - 0.2
+  ];
+
+  // Check direct movement direction and side angles to account for player radius
+  const angles = [0, Math.PI / 4, -Math.PI / 4];
+
+  for (const height of heights) {
+    const origin = startPos.clone();
+    origin.y = height;
+
+    for (const angle of angles) {
+      const rayDir = moveDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+      raycasterHorizontal.set(origin, rayDir);
+      const hits = raycasterHorizontal.intersectObjects(targets, true);
+      
+      if (hits.length > 0 && hits[0].distance < playerRadius + dist) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+    
     function animate() {
       requestAnimationFrame(animate);
       const time = performance.now();
@@ -2638,38 +2670,62 @@
         if (moveForward || moveBackward) velocity.z -= direction.z * accel * delta * 10;
         if (moveLeft || moveRight) velocity.x -= direction.x * accel * delta * 10;
 
-        const targets = loadedModel ? [loadedModel] : [];
-        const oldPos = controls.getObject().position.clone();
+        
+        // --- UPDATED SOLID COLLISION CODE ---
+const targets = loadedModel ? [loadedModel] : [];
+const oldPos = controls.getObject().position.clone();
 
-        controls.moveRight(-velocity.x * delta);
-        controls.moveForward(-velocity.z * delta);
+if (targets.length > 0) {
+  const currentPos = oldPos.clone();
+  
+  // Resolve X-axis movement
+  controls.moveRight(-velocity.x * delta);
+  const posAfterX = controls.getObject().position.clone();
+  const moveXVec = new THREE.Vector3(posAfterX.x - currentPos.x, 0, posAfterX.z - currentPos.z);
+  
+  if (checkWallCollision(currentPos, moveXVec, targets)) {
+    controls.getObject().position.x = currentPos.x;
+    controls.getObject().position.z = currentPos.z;
+    velocity.x = 0;
+  }
 
-        const newPos = controls.getObject().position.clone();
-        const moveDir = new THREE.Vector3().subVectors(newPos, oldPos);
-        const moveDist = moveDir.length();
+  // Resolve Z-axis movement
+  const posBeforeZ = controls.getObject().position.clone();
+  controls.moveForward(-velocity.z * delta);
+  const posAfterZ = controls.getObject().position.clone();
+  const moveZVec = new THREE.Vector3(posAfterZ.x - posBeforeZ.x, 0, posAfterZ.z - posBeforeZ.z);
 
-        if (moveDist > 0.0001 && targets.length > 0) {
-          moveDir.normalize();
-          const chestPos = oldPos.clone();
-          chestPos.y = oldPos.y - playerHeight + maxStepHeight + 0.05;
+  if (checkWallCollision(posBeforeZ, moveZVec, targets)) {
+    controls.getObject().position.x = posBeforeZ.x;
+    controls.getObject().position.z = posBeforeZ.z;
+    velocity.z = 0;
+  }
+} else {
+  controls.moveRight(-velocity.x * delta);
+  controls.moveForward(-velocity.z * delta);
+}
 
-          raycasterHorizontal.set(chestPos, moveDir);
-          const wallHits = raycasterHorizontal.intersectObjects(targets, true);
-
-          if (wallHits.length > 0 && wallHits[0].distance < playerRadius) {
-            controls.getObject().position.x = oldPos.x;
-            controls.getObject().position.z = oldPos.z;
+        // Ceiling collision: stop upward movement if a mesh is close overhead
+        if (targets.length > 0 && velocity.y > 0) {
+          const moveUp = velocity.y * delta;
+          raycasterUp.set(controls.getObject().position, new THREE.Vector3(0, 1, 0));
+          const ceilingHits = raycasterUp.intersectObjects(targets, true);
+          if (ceilingHits.length > 0 && ceilingHits[0].distance < moveUp + 0.1) {
+            velocity.y = 0;
           }
         }
 
         controls.getObject().position.y += velocity.y * delta;
         isGrounded = false;
 
-        if (targets.length > 0) {
+       if (targets.length > 0) {
           raycasterDown.set(controls.getObject().position, new THREE.Vector3(0, -1, 0));
           const surfaceHits = raycasterDown.intersectObjects(targets, true);
 
-          if (surfaceHits.length > 0) {
+          // Solid ground/floor collision so the player lands on and can't fall through meshes
+          const allowLanding = true; 
+
+          if (allowLanding && surfaceHits.length > 0) {
             const hit = surfaceHits[0];
             if (hit.distance <= playerHeight + maxStepHeight && velocity.y <= 0) {
               let isBounceMesh = false;
