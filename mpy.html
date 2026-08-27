@@ -716,12 +716,12 @@
 
     <div class="shop-item">
       <div class="shop-item-info"><span>🚁</span> <b>Personal Helicopter</b></div>
-      <button class="buy-btn" data-item="helicopter" data-price="35">35 🪙 Buy</button>
+      <button class="buy-btn" data-item="helicopter" data-price="35" data-vavite="5">35 🪙 + 5 🔮 Buy</button>
     </div>
 
     <div class="shop-item">
       <div class="shop-item-info"><span>🏎️</span> <b>Sports Car (3x Speed)</b></div>
-      <button class="buy-btn" data-item="car" data-price="25">25 🪙 Buy</button>
+      <button class="buy-btn" data-item="car" data-price="25" data-vavite="3">25 🪙 + 3 🔮 Buy</button>
     </div>
 
     <div class="shop-item">
@@ -1865,6 +1865,7 @@
     const interactableObjects = [];
     let hoveredObject = null;
     let fallbackShop = null;
+    let fallbackVavite = null;
 
     // --- Fossil mining state ---
     let miningTarget = null;
@@ -1945,6 +1946,12 @@
         icon: '🦴',
         geometry: new THREE.DodecahedronGeometry(0.22),
         material: new THREE.MeshStandardMaterial({ color: 0xc2a878, roughness: 0.9, metalness: 0.05 })
+      },
+      vavite: {
+        name: 'Vavite',
+        icon: '🔮',
+        geometry: new THREE.IcosahedronGeometry(0.24),
+        material: new THREE.MeshStandardMaterial({ color: 0x8a2be2, roughness: 0.25, metalness: 0.6, emissive: 0x4b0082, emissiveIntensity: 0.5 })
       }
     };
 
@@ -2041,6 +2048,47 @@
       }
     }
 
+    // A glowing crystal deposit used when the loaded map has no "vavite"-named
+    // object of its own, so mining vavite always works out of the box.
+    function createFallbackVaviteDeposit(position) {
+      const template = itemCatalog.vavite;
+      const depositGroup = new THREE.Group();
+
+      const crystal = new THREE.Mesh(template.geometry, template.material);
+      crystal.scale.set(2.4, 2.4, 2.4);
+      crystal.position.y = 0.55;
+      depositGroup.add(crystal);
+
+      const glow = new THREE.PointLight(0x8a2be2, 1.2, 4);
+      glow.position.y = 0.55;
+      depositGroup.add(glow);
+
+      depositGroup.position.copy(position);
+      depositGroup.traverse((child) => {
+        child.userData.isVavite = true;
+        child.userData.isMineable = true;
+        child.userData.mineralKey = 'vavite';
+        child.userData.name = 'Vavite Deposit';
+      });
+
+      scene.add(depositGroup);
+      interactableObjects.push(depositGroup);
+      return depositGroup;
+    }
+
+    function removeFallbackVavite() {
+      if (fallbackVavite) {
+        scene.remove(fallbackVavite);
+        fallbackVavite.traverse((child) => {
+          const idx = interactableObjects.indexOf(child);
+          if (idx > -1) interactableObjects.splice(idx, 1);
+        });
+        const idx = interactableObjects.indexOf(fallbackVavite);
+        if (idx > -1) interactableObjects.splice(idx, 1);
+        fallbackVavite = null;
+      }
+    }
+
     function setupShopFromGLTF(gltfScene) {
       for (let i = interactableObjects.length - 1; i >= 0; i--) {
         if (interactableObjects[i].userData && interactableObjects[i].userData.isGLBShop) {
@@ -2112,16 +2160,57 @@
           const displayName = child.name.replace(/_/g, ' ') || 'Fossil';
           child.traverse((subChild) => {
             subChild.userData.isFossil = true;
+            subChild.userData.isMineable = true;
+            subChild.userData.mineralKey = 'fossil';
             subChild.userData.name = displayName;
             subChild.userData.fossilRoot = child;
             if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
           });
           child.userData.isFossil = true;
+          child.userData.isMineable = true;
+          child.userData.mineralKey = 'fossil';
           child.userData.name = displayName;
           child.userData.fossilRoot = child;
           if (!interactableObjects.includes(child)) interactableObjects.push(child);
         }
       });
+    }
+
+    // --- VAVITE DETECTION (mine & pick up) ---
+    function setupVaviteFromGLTF(gltfScene) {
+      for (let i = interactableObjects.length - 1; i >= 0; i--) {
+        if (interactableObjects[i].userData && interactableObjects[i].userData.isVavite) {
+          interactableObjects.splice(i, 1);
+        }
+      }
+
+      removeFallbackVavite();
+
+      let foundVavite = false;
+      gltfScene.traverse((child) => {
+        if (child.name && child.name.toLowerCase().includes('vavite')) {
+          foundVavite = true;
+          const displayName = child.name.replace(/_/g, ' ') || 'Vavite';
+          child.traverse((subChild) => {
+            subChild.userData.isVavite = true;
+            subChild.userData.isMineable = true;
+            subChild.userData.mineralKey = 'vavite';
+            subChild.userData.name = displayName;
+            if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
+          });
+          child.userData.isVavite = true;
+          child.userData.isMineable = true;
+          child.userData.mineralKey = 'vavite';
+          child.userData.name = displayName;
+          if (!interactableObjects.includes(child)) interactableObjects.push(child);
+        }
+      });
+
+      // No vavite object in the map itself - drop in a fallback deposit so
+      // mining vavite always works, regardless of the loaded model.
+      if (!foundVavite) {
+        fallbackVavite = createFallbackVaviteDeposit(new THREE.Vector3(-3, 0, -3));
+      }
     }
 
     // --- INVENTORY UI & SWAP SYSTEM ---
@@ -2287,6 +2376,36 @@
       return remaining === 0;
     }
 
+    // Generic versions of the two helpers above, matched by exact item name
+    // (used for Vavite, and anything else with a single fixed catalog name).
+    function countItemByName(name) {
+      return inventory.reduce((total, slot) => {
+        if (slot && slot.name === name) {
+          return total + (slot.quantity || 1);
+        }
+        return total;
+      }, 0);
+    }
+
+    function removeItemByName(name, amount) {
+      let remaining = amount;
+      for (let i = 0; i < TOTAL_SLOTS && remaining > 0; i++) {
+        const slot = inventory[i];
+        if (slot && slot.name === name) {
+          const have = slot.quantity || 1;
+          if (have <= remaining) {
+            remaining -= have;
+            inventory[i] = null;
+          } else {
+            slot.quantity = have - remaining;
+            remaining = 0;
+          }
+        }
+      }
+      updateInventoryUI();
+      return remaining === 0;
+    }
+
     function dropSelectedItem() {
       const itemData = inventory[selectedSlot];
       if (!itemData) return;
@@ -2355,9 +2474,15 @@
       btn.addEventListener('click', (e) => {
         const itemKey = e.target.getAttribute('data-item');
         const price = parseInt(e.target.getAttribute('data-price'), 10);
+        const vaviteCost = parseInt(e.target.getAttribute('data-vavite'), 10) || 0;
 
         if (playerCoins < price) {
           alert("Not enough coins!");
+          return;
+        }
+
+        if (vaviteCost > 0 && countItemByName('Vavite') < vaviteCost) {
+          alert(`You need ${vaviteCost} 🔮 Vavite for this! You have ${countItemByName('Vavite')}.`);
           return;
         }
 
@@ -2372,6 +2497,7 @@
         if (template && addItemToInventory(template)) {
           playerCoins -= price;
           updateCoinHUD();
+          if (vaviteCost > 0) removeItemByName('Vavite', vaviteCost);
         }
       });
     });
@@ -2384,9 +2510,9 @@
       }
     }
 
-    // --- FOSSIL MINING ---
-    function startMining(fossilMesh) {
-      miningTarget = fossilMesh;
+    // --- MINING (fossils, vavite, ...) ---
+    function startMining(depositMesh) {
+      miningTarget = depositMesh;
       miningStartTime = performance.now();
       if (miningProgressBar) miningProgressBar.style.width = '0%';
       if (miningProgressTrack) miningProgressTrack.style.display = 'block';
@@ -2398,10 +2524,16 @@
       if (miningProgressTrack) miningProgressTrack.style.display = 'none';
     }
 
-    function mineFossil(fossilMesh) {
-      const template = itemCatalog.fossil;
-      // Always use the generic "Fossil" name/icon (not the GLTF node's own name) so that
-      // every fossil mined stacks together into one inventory slot instead of scattering
+    function mineDeposit(depositMesh) {
+      const mineralKey = (depositMesh.userData && depositMesh.userData.mineralKey) || 'fossil';
+      const template = itemCatalog[mineralKey];
+      if (!template) {
+        cancelMining();
+        return;
+      }
+
+      // Always use the generic item name/icon (not the GLTF node's own name) so that
+      // everything mined stacks together into one inventory slot instead of scattering
       // across separate slots.
       const added = addItemToInventory({
         name: template.name,
@@ -2411,15 +2543,15 @@
       });
 
       if (!added) {
-        cancelMining(); // Inventory full - fossil stays put, try again after freeing a slot
+        cancelMining(); // Inventory full - deposit stays put, try again after freeing a slot
         return;
       }
 
-      // The fossil deposit is never removed, so it can be mined again and again.
+      // Deposits are never removed, so they can be mined again and again.
       // If the player is still holding E while looking at it, loop straight into
       // another mining cycle instead of requiring a fresh key press each time.
-      if (isEKeyDown && hoveredObject === fossilMesh) {
-        startMining(fossilMesh);
+      if (isEKeyDown && hoveredObject === depositMesh) {
+        startMining(depositMesh);
       } else {
         cancelMining();
       }
@@ -2546,7 +2678,7 @@
           break;
         case 'KeyE':
           isEKeyDown = true;
-          if (hoveredObject && hoveredObject.userData.isFossil) {
+          if (hoveredObject && hoveredObject.userData.isMineable) {
             if (miningTarget !== hoveredObject) startMining(hoveredObject);
           } else {
             handleInteraction();
@@ -2658,6 +2790,7 @@
           setupShopFromGLTF(loadedModel);
           setupGasStationsFromGLTF(loadedModel);
           setupFossilsFromGLTF(loadedModel);
+          setupVaviteFromGLTF(loadedModel);
           detectPortalsInModel(loadedModel);
 
           const box = new THREE.Box3().setFromObject(loadedModel);
@@ -3153,15 +3286,15 @@ if (targets.length > 0) {
 
         if (intersects.length > 0 && intersects[0].distance < 3.5) {
           let topObj = intersects[0].object;
-          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem && !topObj.userData.isFossil) {
+          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem && !topObj.userData.isMineable) {
             topObj = topObj.parent;
           }
 
-          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem || topObj.userData.isFossil) {
+          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem || topObj.userData.isMineable) {
             hoveredObject = topObj;
             promptItemName.textContent = topObj.userData.name || 'Item';
             if (promptActionText) {
-              promptActionText.innerHTML = topObj.userData.isFossil ? 'Hold <b>E</b> to mine' : 'Press <b>E</b> to interact with';
+              promptActionText.innerHTML = topObj.userData.isMineable ? 'Hold <b>E</b> to mine' : 'Press <b>E</b> to interact with';
             }
             interactionPrompt.style.display = 'block';
           } else {
@@ -3180,7 +3313,7 @@ if (targets.length > 0) {
           } else {
             const progress = Math.min((time - miningStartTime) / MINE_DURATION_MS, 1);
             if (miningProgressBar) miningProgressBar.style.width = (progress * 100) + '%';
-            if (progress >= 1) mineFossil(miningTarget);
+            if (progress >= 1) mineDeposit(miningTarget);
           }
         }
 
