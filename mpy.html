@@ -442,11 +442,14 @@
     @media (max-width: 768px) {
       #inventory-bar {
         bottom: 10px;
-        gap: 4px;
+        gap: 3px;
       }
       .slot {
-        width: 46px;
-        height: 46px;
+        width: 35px;
+        height: 35px;
+      }
+      .slot-icon {
+        font-size: 16px;
       }
       .slot-name {
         display: none;
@@ -699,6 +702,10 @@
     <div class="slot" data-slot="2"><span class="slot-num">3</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
     <div class="slot" data-slot="3"><span class="slot-num">4</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
     <div class="slot" data-slot="4"><span class="slot-num">5</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="5"><span class="slot-num">6</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="6"><span class="slot-num">7</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="7"><span class="slot-num">8</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="8"><span class="slot-num">9</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
   </div>
 
   <div id="shop-modal">
@@ -1854,8 +1861,8 @@
     // --- INVENTORY & ITEMS DATA ---
     let playerCoins = 10;
     
-    const HOTBAR_SLOTS = 5;
-    const INNER_SLOTS = 15;
+    const HOTBAR_SLOTS = 9;
+    const INNER_SLOTS = 27;
     const TOTAL_SLOTS = HOTBAR_SLOTS + INNER_SLOTS;
     const inventory = new Array(TOTAL_SLOTS).fill(null);
     let selectedSlot = 0; 
@@ -1872,6 +1879,7 @@
     let miningStartTime = 0;
     let isEKeyDown = false;
     const MINE_DURATION_MS = 2000;
+    const DIAMOND_MINE_DURATION_MS = 1000;
 
     const coinCountDisplay = document.getElementById('coin-count');
     const interactionPrompt = document.getElementById('interaction-prompt');
@@ -2692,6 +2700,10 @@
         case 'Digit3': selectedSlot = 2; updateInventoryUI(); break;
         case 'Digit4': selectedSlot = 3; updateInventoryUI(); break;
         case 'Digit5': selectedSlot = 4; updateInventoryUI(); break;
+        case 'Digit6': selectedSlot = 5; updateInventoryUI(); break;
+        case 'Digit7': selectedSlot = 6; updateInventoryUI(); break;
+        case 'Digit8': selectedSlot = 7; updateInventoryUI(); break;
+        case 'Digit9': selectedSlot = 8; updateInventoryUI(); break;
       }
     };
 
@@ -3311,7 +3323,9 @@ if (targets.length > 0) {
           if (!isEKeyDown || hoveredObject !== miningTarget) {
             cancelMining();
           } else {
-            const progress = Math.min((time - miningStartTime) / MINE_DURATION_MS, 1);
+            const heldItem = inventory[selectedSlot];
+            const activeMineDuration = (heldItem && heldItem.name.includes('Diamond')) ? DIAMOND_MINE_DURATION_MS : MINE_DURATION_MS;
+            const progress = Math.min((time - miningStartTime) / activeMineDuration, 1);
             if (miningProgressBar) miningProgressBar.style.width = (progress * 100) + '%';
             if (progress >= 1) mineDeposit(miningTarget);
           }
