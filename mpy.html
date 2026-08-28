@@ -295,8 +295,8 @@
       max-width: 52px;
     }
 
-    /* Shop & Inventory Modals UI */
-    #shop-modal, #inventory-modal {
+    /* Shop, Inventory & Chest Modals UI */
+    #shop-modal, #inventory-modal, #chest-modal {
       position: absolute;
       top: 50%;
       left: 50%;
@@ -324,6 +324,10 @@
       border: 2px solid #4da6ff;
     }
 
+    #chest-modal {
+      border: 2px solid #c68642;
+    }
+
     .shop-header {
       font-size: 22px;
       color: #ffd700;
@@ -336,6 +340,10 @@
 
     #inventory-modal .shop-header {
       color: #4da6ff;
+    }
+
+    #chest-modal .shop-header {
+      color: #c68642;
     }
 
     .shop-item {
@@ -643,7 +651,7 @@
 
       <div class="instructions-text">
         <b>Controls:</b> WASD to Move | Space to Jump / Fly Helicopter | Left Click to Attack / Shoot Bow<br>
-        <b>Interact / Shop / Gas Station:</b> E | <b>Inventory:</b> I / TAB | <b>Use Consumable:</b> Right Click / F | <b>Drop:</b> Q | <b>Pause:</b> ESC
+        <b>Interact / Shop / Gas Station / Chest:</b> E | <b>Inventory:</b> I / TAB | <b>Use Consumable:</b> Right Click / F | <b>Drop:</b> Q | <b>Place Base (needs a Base Kit):</b> B | <b>Pause:</b> ESC
       </div>
     </div>
   </div>
@@ -732,6 +740,11 @@
     </div>
 
     <div class="shop-item">
+      <div class="shop-item-info"><span>🏠</span> <b>Base Kit (Storage Chest)</b></div>
+      <button class="buy-btn" data-item="base_kit" data-price="30">30 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
       <div class="shop-item-info"><span>⛽</span> <b>Fuel Tank (+100 Fuel)</b></div>
       <button class="buy-btn" data-item="fuel_tank" data-price="10">10 🪙 Buy</button>
     </div>
@@ -771,6 +784,20 @@
     <div style="font-size: 11px; color: #888; text-align: center; margin-top: 4px;">Click an item slot to select and move/swap items.</div>
 
     <button class="close-shop-btn" id="closeInvBtn">Close Inventory</button>
+  </div>
+
+  <div id="chest-modal">
+    <div class="shop-header">📦 Base Storage</div>
+
+    <div class="inv-section-title">🧳 Chest Storage</div>
+    <div id="chest-grid" class="inv-grid"></div>
+
+    <div class="inv-section-title">🎒 Your Inventory</div>
+    <div id="chest-player-grid" class="inv-grid"></div>
+
+    <div style="font-size: 11px; color: #888; text-align: center; margin-top: 4px;">Click an item to select it, then click another slot to move or swap it.</div>
+
+    <button class="close-shop-btn" id="closeChestBtn">Close Chest</button>
   </div>
 
   <script type="module">
@@ -835,6 +862,7 @@
     const startBtn = document.getElementById('startBtn');
     const shopModal = document.getElementById('shop-modal');
     const inventoryModal = document.getElementById('inventory-modal');
+    const chestModal = document.getElementById('chest-modal');
     const invHudBtn = document.getElementById('inv-hud-btn');
     const loadingStatus = document.getElementById('loading-status');
     const damageFlash = document.getElementById('damage-flash');
@@ -848,6 +876,7 @@
 
     let isShopOpen = false;
     let isInventoryOpen = false;
+    let isChestOpen = false;
 
     startBtn.addEventListener('click', () => {
       controls.lock();
@@ -857,12 +886,14 @@
       blocker.style.display = 'none';
       shopModal.style.display = 'none';
       inventoryModal.style.display = 'none';
+      chestModal.style.display = 'none';
       isShopOpen = false;
       isInventoryOpen = false;
+      isChestOpen = false;
     });
 
     controls.addEventListener('unlock', () => {
-      if (!isShopOpen && !isInventoryOpen) {
+      if (!isShopOpen && !isInventoryOpen && !isChestOpen) {
         blocker.style.display = 'flex';
       }
     });
@@ -1026,7 +1057,7 @@
       if (!multiplayerMenu) return;
       multiplayerMenu.classList.remove('open');
       multiplayerMenu.setAttribute('aria-hidden', 'true');
-      if (multiplayerMenuWasLocked && !isShopOpen && !isInventoryOpen) controls.lock();
+      if (multiplayerMenuWasLocked && !isShopOpen && !isInventoryOpen && !isChestOpen) controls.lock();
       multiplayerMenuWasLocked = false;
     }
 
@@ -1198,6 +1229,22 @@
       },
       undefined,
       (err) => console.warn('Could not load player.glb', err)
+    );
+
+    // --- BASE GLB TEMPLATE (placeable structure) ---
+    let baseModelTemplate = null;
+    let baseModelGroundOffset = 0; // distance from the model's pivot down to its lowest point
+
+    loader.load(
+      baseURL + 'base.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        baseModelGroundOffset = -box.min.y;
+        baseModelTemplate = model;
+      },
+      undefined,
+      (err) => console.warn('Could not load base.glb', err)
     );
 
     // --- HEALTH, FUEL & ARROW HUD LOGIC ---
@@ -1557,7 +1604,7 @@
     }
 
     window.addEventListener('mousedown', (e) => {
-      if (controls.isLocked && !isShopOpen && !isInventoryOpen) {
+      if (controls.isLocked && !isShopOpen && !isInventoryOpen && !isChestOpen) {
         if (e.button === 0) triggerAttack();
         if (e.button === 2) useSelectedItem();
       }
@@ -1870,6 +1917,7 @@
 
     const itemsInWorld = [];
     const interactableObjects = [];
+    const placedBases = [];
     let hoveredObject = null;
     let fallbackShop = null;
     let fallbackVavite = null;
@@ -1890,6 +1938,8 @@
     const miningProgressBar = document.getElementById('mining-progress-bar');
     const innerGridEl = document.getElementById('inner-grid');
     const hotbarGridEl = document.getElementById('hotbar-grid');
+    const chestGridEl = document.getElementById('chest-grid');
+    const chestPlayerGridEl = document.getElementById('chest-player-grid');
 
     function updateCoinHUD() {
       coinCountDisplay.textContent = playerCoins;
@@ -1967,6 +2017,12 @@
         icon: '🪨',
         geometry: new THREE.DodecahedronGeometry(0.24),
         material: new THREE.MeshStandardMaterial({ color: 0x8a6d5b, roughness: 0.85, metalness: 0.35 })
+      },
+      base_kit: {
+        name: 'Base Kit',
+        icon: '🏠',
+        geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3),
+        material: new THREE.MeshStandardMaterial({ color: 0xa0522d, roughness: 0.8 })
       }
     };
 
@@ -2520,6 +2576,113 @@
       updateInventoryUI();
     }
 
+    // --- BASE PLACEMENT (base.glb, placeable anywhere) - doubles as a storage chest ---
+    const BASE_STORAGE_SLOTS = 20;
+
+    function spawnBaseAt(position, rotationY = 0) {
+      if (!baseModelTemplate) return null;
+
+      const base = baseModelTemplate.clone(true);
+      base.position.copy(position);
+      base.position.y += baseModelGroundOffset; // sit flush on the surface regardless of the model's pivot
+      base.rotation.y = rotationY;
+
+      // Give this base its own storage array and mark every node in its
+      // hierarchy as an interactable chest, pointing back to the root object
+      // so it can be found again regardless of which mesh the raycast hits.
+      base.userData.chestStorage = new Array(BASE_STORAGE_SLOTS).fill(null);
+      base.traverse((child) => {
+        child.userData.isBaseChest = true;
+        child.userData.name = 'Base Storage';
+        child.userData.chestOwner = base;
+      });
+
+      scene.add(base);
+      placedBases.push(base);
+      interactableObjects.push(base);
+      return base;
+    }
+
+    function placeBaseAtCrosshair() {
+      if (!baseModelTemplate) {
+        alert('Base model is still loading, try again in a moment.');
+        return;
+      }
+
+      if (countItemByName('Base Kit') < 1) {
+        alert('You need a Base Kit to place a base! Buy one from the shop.');
+        return;
+      }
+
+      const camPos = new THREE.Vector3();
+      camera.getWorldPosition(camPos);
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+
+      let placePos = null;
+
+      // Aim the crosshair ray at the loaded map to find exactly where to drop the base.
+      if (loadedModel) {
+        raycasterInteract.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const hits = raycasterInteract.intersectObject(loadedModel, true);
+        if (hits.length > 0 && hits[0].distance < 80) {
+          placePos = hits[0].point.clone();
+        }
+      }
+
+      // No surface hit within range (open sky, no map, or too far away) - fall back
+      // to a fixed spot in front of the player at their current ground level.
+      if (!placePos) {
+        placePos = camPos.clone().add(camDir.clone().multiplyScalar(6));
+        placePos.y = controls.getObject().position.y - playerHeight;
+      }
+
+      // Face the base away from the player, keeping it upright.
+      const rotationY = Math.atan2(camDir.x, camDir.z);
+
+      spawnBaseAt(placePos, rotationY);
+      removeItemByName('Base Kit', 1);
+    }
+
+    // Restores bases from a save file once base.glb has finished loading, retrying
+    // briefly if the model isn't ready yet (e.g. a save is loaded right after page load).
+    function restoreSavedBases(baseList, triesLeft = 10) {
+      if (!Array.isArray(baseList) || baseList.length === 0) return;
+
+      if (!baseModelTemplate) {
+        if (triesLeft > 0) setTimeout(() => restoreSavedBases(baseList, triesLeft - 1), 300);
+        return;
+      }
+
+      baseList.forEach((b) => {
+        if (typeof b.x === 'number' && typeof b.y === 'number' && typeof b.z === 'number') {
+          const restoredBase = spawnBaseAt(new THREE.Vector3(b.x, b.y, b.z), b.rotationY || 0);
+          if (restoredBase && Array.isArray(b.storage)) {
+            restoredBase.userData.chestStorage = deserializeItemList(b.storage, BASE_STORAGE_SLOTS);
+          }
+        }
+      });
+    }
+
+    // Rehydrates a saved list of {name, quantity} entries into full item objects
+    // (icon/geometry/material looked up from itemCatalog) - used to restore a
+    // base's chest storage from a save file.
+    function deserializeItemList(list, size) {
+      const result = new Array(size).fill(null);
+      if (!Array.isArray(list)) return result;
+      list.forEach((entry, idx) => {
+        if (idx >= size || !entry) return;
+        const itemName = (typeof entry === 'string') ? entry : entry.name;
+        const quantity = (typeof entry === 'object' && entry.quantity) ? entry.quantity : 1;
+        const catKey = Object.keys(itemCatalog).find(k => itemCatalog[k].name === itemName);
+        if (catKey) {
+          const tmpl = itemCatalog[catKey];
+          result[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material, quantity: quantity };
+        }
+      });
+      return result;
+    }
+
     function openShop() {
       isShopOpen = true;
       if (controls.isLocked) controls.unlock();
@@ -2556,8 +2719,87 @@
       else openInventory();
     }
 
+    // --- BASE STORAGE CHEST UI ---
+    let activeChestBase = null;
+    let activeChestStorage = null;
+    let chestSwapSource = null; // { container: 'chest' | 'player', index: number }
+
+    function openChest(baseObj) {
+      if (!baseObj || !baseObj.userData.chestStorage) return;
+      activeChestBase = baseObj;
+      activeChestStorage = baseObj.userData.chestStorage;
+      chestSwapSource = null;
+      isChestOpen = true;
+      if (controls.isLocked) controls.unlock();
+      chestModal.style.display = 'flex';
+      interactionPrompt.style.display = 'none';
+      cancelMining();
+      renderChestModal();
+    }
+
+    function closeChest() {
+      chestModal.style.display = 'none';
+      isChestOpen = false;
+      activeChestBase = null;
+      activeChestStorage = null;
+      chestSwapSource = null;
+      controls.lock();
+    }
+
+    function getChestContainerArray(container) {
+      return container === 'chest' ? activeChestStorage : inventory;
+    }
+
+    function handleChestSlotClick(container, index) {
+      const arr = getChestContainerArray(container);
+      if (!arr) return;
+
+      if (!chestSwapSource) {
+        if (arr[index] !== null) chestSwapSource = { container, index };
+      } else if (chestSwapSource.container === container && chestSwapSource.index === index) {
+        chestSwapSource = null;
+      } else {
+        const srcArr = getChestContainerArray(chestSwapSource.container);
+        const temp = srcArr[chestSwapSource.index];
+        srcArr[chestSwapSource.index] = arr[index];
+        arr[index] = temp;
+        chestSwapSource = null;
+      }
+
+      renderChestModal();
+      updateInventoryUI();
+    }
+
+    function buildChestSlotEl(item, index, container) {
+      const slotEl = document.createElement('div');
+      const isSelected = chestSwapSource && chestSwapSource.container === container && chestSwapSource.index === index;
+      slotEl.className = 'inv-slot' + (isSelected ? ' source-selected' : '');
+      slotEl.innerHTML = `
+        <span class="inv-slot-num">${index + 1}</span>
+        <span style="font-size: 20px;">${item ? (item.icon || '📦') : ''}</span>
+        <span class="slot-name" style="font-size: 8px;">${item ? item.name + ((item.quantity || 1) > 1 ? ' x' + item.quantity : '') : ''}</span>
+      `;
+      slotEl.addEventListener('click', () => handleChestSlotClick(container, index));
+      return slotEl;
+    }
+
+    function renderChestModal() {
+      if (!activeChestStorage) return;
+
+      chestGridEl.innerHTML = '';
+      activeChestStorage.forEach((item, i) => {
+        chestGridEl.appendChild(buildChestSlotEl(item, i, 'chest'));
+      });
+
+      chestPlayerGridEl.innerHTML = '';
+      inventory.forEach((item, i) => {
+        chestPlayerGridEl.appendChild(buildChestSlotEl(item, i, 'player'));
+      });
+    }
+
     document.getElementById('closeShopBtn').addEventListener('click', closeShop);
     document.getElementById('closeInvBtn').addEventListener('click', closeInventory);
+    document.getElementById('closeChestBtn').addEventListener('click', closeChest);
     invHudBtn.addEventListener('click', toggleInventory);
 
     document.querySelectorAll('.buy-btn').forEach(btn => {
@@ -2596,6 +2838,7 @@
       if (hoveredObject && controls.isLocked) {
         if (hoveredObject.userData.isShop) openShop();
         else if (hoveredObject.userData.isGasStation) refuelAtStation();
+        else if (hoveredObject.userData.isBaseChest) openChest(hoveredObject.userData.chestOwner);
         else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
       }
     }
@@ -2663,7 +2906,14 @@
           x: controls.getObject().position.x,
           y: controls.getObject().position.y,
           z: controls.getObject().position.z
-        }
+        },
+        bases: placedBases.map(base => ({
+          x: base.position.x,
+          y: base.position.y - baseModelGroundOffset,
+          z: base.position.z,
+          rotationY: base.rotation.y,
+          storage: (base.userData.chestStorage || []).map(item => item ? { name: item.name, quantity: item.quantity || 1 } : null)
+        }))
       };
 
       localStorage.setItem('3d_fps_game_save', JSON.stringify(saveData));
@@ -2719,6 +2969,19 @@
           controls.getObject().position.set(saveData.position.x, saveData.position.y, saveData.position.z);
         }
 
+        // Clear any currently placed bases, then restore the saved ones - only valid
+        // if the save was made on the map that's currently loaded.
+        if (isChestOpen) closeChest();
+        placedBases.forEach((base) => {
+          scene.remove(base);
+          const idx = interactableObjects.indexOf(base);
+          if (idx > -1) interactableObjects.splice(idx, 1);
+        });
+        placedBases.length = 0;
+        if (saveData.map === currentLoadedFileName) {
+          restoreSavedBases(saveData.bases);
+        }
+
         alert("Game Save Loaded!");
       } catch (e) {
         console.error("Save parse error:", e);
@@ -2751,10 +3014,11 @@
         }
         if (isShopOpen) closeShop();
         if (isInventoryOpen) closeInventory();
+        if (isChestOpen) closeChest();
         return;
       }
 
-      if (isShopOpen || isInventoryOpen) return;
+      if (isShopOpen || isInventoryOpen || isChestOpen) return;
 
       switch (e.code) {
         case 'KeyW': case 'ArrowUp': moveForward = true; break;
@@ -2777,6 +3041,7 @@
         case 'KeyI': toggleInventory(); break;
         case 'KeyF': useSelectedItem(); break;
         case 'KeyQ': if (controls.isLocked) dropSelectedItem(); break;
+        case 'KeyB': if (controls.isLocked) placeBaseAtCrosshair(); break;
         case 'Digit1': selectedSlot = 0; updateInventoryUI(); break;
         case 'Digit2': selectedSlot = 1; updateInventoryUI(); break;
         case 'Digit3': selectedSlot = 2; updateInventoryUI(); break;
@@ -2801,7 +3066,7 @@
     };
 
     window.addEventListener('wheel', (e) => {
-      if (!controls.isLocked || isShopOpen || isInventoryOpen) return;
+      if (!controls.isLocked || isShopOpen || isInventoryOpen || isChestOpen) return;
       if (e.deltaY > 0) selectedSlot = (selectedSlot + 1) % HOTBAR_SLOTS;
       else if (e.deltaY < 0) selectedSlot = (selectedSlot - 1 + HOTBAR_SLOTS) % HOTBAR_SLOTS;
       updateInventoryUI();
@@ -2973,7 +3238,7 @@
         lastBroadcast = time;
       }
 
-      if (controls.isLocked && !isShopOpen && !isInventoryOpen) {
+      if (controls.isLocked && !isShopOpen && !isInventoryOpen && !isChestOpen) {
         const delta = Math.min((time - prevTime) / 1000, 0.1);
 
         const currentItem = inventory[selectedSlot];
@@ -3088,7 +3353,7 @@
 
         
         // --- UPDATED SOLID COLLISION CODE ---
-const targets = loadedModel ? [loadedModel] : [];
+const targets = loadedModel ? [loadedModel, ...placedBases] : [...placedBases];
 const oldPos = controls.getObject().position.clone();
 
 if (targets.length > 0) {
@@ -3381,11 +3646,11 @@ if (targets.length > 0) {
 
         if (intersects.length > 0 && intersects[0].distance < 3.5) {
           let topObj = intersects[0].object;
-          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem && !topObj.userData.isMineable) {
+          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem && !topObj.userData.isMineable && !topObj.userData.isBaseChest) {
             topObj = topObj.parent;
           }
 
-          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem || topObj.userData.isMineable) {
+          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem || topObj.userData.isMineable || topObj.userData.isBaseChest) {
             hoveredObject = topObj;
             promptItemName.textContent = topObj.userData.name || 'Item';
             if (promptActionText) {
