@@ -612,6 +612,156 @@
       gap: 10px;
       justify-content: flex-end;
     }
+
+    /* Minecraft-style World Save System */
+    #worlds-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 55;
+      backdrop-filter: blur(5px);
+    }
+
+    #worlds-modal.open {
+      display: flex;
+    }
+
+    .worlds-card {
+      width: min(560px, 92vw);
+      max-height: 82vh;
+      background: #202020;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.65);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .worlds-card h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .create-world-row {
+      display: flex;
+      gap: 8px;
+      margin: 14px 0;
+    }
+
+    .create-world-row input {
+      flex: 1;
+      min-width: 0;
+      background: #171717;
+      border: 1px solid #444;
+      border-radius: 8px;
+      color: #fff;
+      padding: 10px 12px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .worlds-list {
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-right: 4px;
+    }
+
+    .worlds-empty {
+      color: #888;
+      text-align: center;
+      padding: 24px 0;
+      font-size: 14px;
+    }
+
+    .world-entry {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #2a2a2a;
+      border: 1px solid #3b3b3b;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .world-entry-icon {
+      font-size: 24px;
+    }
+
+    .world-entry-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .world-entry-name {
+      font-weight: bold;
+      font-size: 15px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .world-active-tag {
+      color: #28a745;
+      font-size: 11px;
+      font-weight: bold;
+    }
+
+    .world-entry-meta {
+      color: #999;
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .world-entry-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .world-action-btn {
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .world-action-btn:hover {
+      background: #444;
+    }
+
+    #save-toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-10px);
+      background: rgba(20, 20, 20, 0.94);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 60;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    #save-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   </style>
 
   <!-- PeerJS WebRTC multiplayer library -->
@@ -629,6 +779,7 @@
 <body>
 
   <div id="damage-flash"></div>
+  <div id="save-toast"></div>
 
   <div id="blocker">
     <div class="card">
@@ -641,8 +792,8 @@
           📁 Override Map (.GLB)
           <input type="file" id="fileInput" accept=".glb,.gltf" />
         </label>
-        <button id="saveBtn" class="action-btn" style="background-color: #007bff;">💾 Save Game</button>
-        <button id="loadBtn" class="action-btn" style="background-color: #17a2b8;">📂 Load Game</button>
+        <button id="worldsBtn" class="action-btn" style="background-color: #7c3aed;">🌍 Worlds</button>
+        <button id="saveBtn" class="action-btn" style="background-color: #007bff;">💾 Quick Save</button>
       </div>
 
       <span id="file-name">Default: vavstorage.github.io/model.glb</span>
@@ -683,6 +834,24 @@
 
       <div class="multiplayer-actions">
         <button id="close-multiplayer-menu" class="action-btn">Close (F10)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="worlds-modal" aria-hidden="true">
+    <div class="worlds-card">
+      <h2>🌍 Select World</h2>
+      <p class="multiplayer-status">Each world keeps its own map, level, inventory, coins, and bases separate — just like Minecraft's world list. Pick a world to load it and start playing, or create a new one.</p>
+
+      <div class="create-world-row">
+        <input type="text" id="newWorldName" placeholder="New world name..." autocomplete="off" maxlength="40" />
+        <button id="createWorldBtn" class="action-btn join-peer-btn">➕ Create World</button>
+      </div>
+
+      <div id="worlds-list" class="worlds-list"></div>
+
+      <div class="multiplayer-actions">
+        <button id="close-worlds-menu" class="action-btn">Close</button>
       </div>
     </div>
   </div>
@@ -2890,9 +3059,101 @@
       }
     }
 
-    // --- SAVE / LOAD GAME SYSTEM ---
-    function saveGame() {
-      const saveData = {
+    // --- MINECRAFT-STYLE WORLD SAVE SYSTEM ---
+    // Instead of one overwrite-only save slot, progress lives in a list of named
+    // "worlds" (like Minecraft's Select World screen). Each world remembers its
+    // own map, stats, inventory, position, and bases. Worlds are stored in
+    // localStorage under WORLDS_KEY; the old single-slot save is auto-imported
+    // once as "Imported World" so nobody loses existing progress.
+    const WORLDS_KEY = '3d_fps_worlds_v1';
+    const LEGACY_SAVE_KEY = '3d_fps_game_save';
+    const AUTOSAVE_INTERVAL_MS = 90000;
+
+    let worlds = [];
+    let activeWorldId = null;
+    let toastTimer = null;
+    const worldsModal = document.getElementById('worlds-modal');
+    const worldsListEl = document.getElementById('worlds-list');
+    const newWorldNameInput = document.getElementById('newWorldName');
+    const saveToastEl = document.getElementById('save-toast');
+
+    function showToast(msg) {
+      if (!saveToastEl) return;
+      saveToastEl.textContent = msg;
+      saveToastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => saveToastEl.classList.remove('show'), 2600);
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = String(str);
+      return div.innerHTML;
+    }
+
+    function formatRelativeTime(ts) {
+      if (!ts) return 'never played';
+      const mins = Math.floor((Date.now() - ts) / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      return `${Math.floor(hrs / 24)}d ago`;
+    }
+
+    function loadWorldsFromStorage() {
+      try {
+        const raw = localStorage.getItem(WORLDS_KEY);
+        worlds = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(worlds)) worlds = [];
+      } catch (e) {
+        console.error('Could not read worlds list:', e);
+        worlds = [];
+      }
+    }
+
+    function persistWorlds() {
+      try {
+        localStorage.setItem(WORLDS_KEY, JSON.stringify(worlds));
+      } catch (e) {
+        console.error('Could not save worlds list:', e);
+        showToast('⚠️ Could not save — storage may be full.');
+      }
+    }
+
+    // One-time migration: fold the old single-slot save into the new worlds list
+    // the first time this loads, so existing progress isn't lost.
+    function migrateLegacySaveIfNeeded() {
+      if (worlds.length > 0) return;
+      const raw = localStorage.getItem(LEGACY_SAVE_KEY);
+      if (!raw) return;
+      try {
+        const legacy = JSON.parse(raw);
+        worlds.push({
+          id: 'world_' + Date.now(),
+          name: 'Imported World',
+          map: legacy.map || currentLoadedFileName,
+          mapSource: 'remote',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          data: {
+            level: legacy.level, xp: legacy.xp, xpToNextLevel: legacy.xpToNextLevel,
+            coins: legacy.coins, health: legacy.health, fuel: legacy.fuel, arrows: legacy.arrows,
+            inventory: legacy.inventory, position: legacy.position, bases: legacy.bases
+          }
+        });
+        persistWorlds();
+      } catch (e) {
+        console.error('Legacy save migration failed:', e);
+      }
+    }
+
+    function getActiveWorld() {
+      return worlds.find(w => w.id === activeWorldId) || null;
+    }
+
+    function buildSaveDataObject() {
+      return {
         level: playerLevel,
         xp: playerXP,
         xpToNextLevel: xpToNextLevel,
@@ -2900,7 +3161,6 @@
         health: playerHealth,
         fuel: playerFuel,
         arrows: playerArrows,
-        map: currentLoadedFileName,
         inventory: inventory.map(item => item ? { name: item.name, quantity: item.quantity || 1 } : null),
         position: {
           x: controls.getObject().position.x,
@@ -2915,82 +3175,216 @@
           storage: (base.userData.chestStorage || []).map(item => item ? { name: item.name, quantity: item.quantity || 1 } : null)
         }))
       };
-
-      localStorage.setItem('3d_fps_game_save', JSON.stringify(saveData));
-      alert("Game Progress Saved!");
     }
 
-    function loadGame() {
-      const rawData = localStorage.getItem('3d_fps_game_save');
-      if (!rawData) {
-        alert("No save file found!");
+    // Applies a world's saved stats/inventory/position. Deliberately leaves bases
+    // alone (cleared here, restored by the caller) since restoring them is only
+    // safe once we know the matching map is actually loaded.
+    function applySaveDataObject(data) {
+      if (!data) return;
+      playerLevel = data.level || 1;
+      playerXP = data.xp || 0;
+      xpToNextLevel = data.xpToNextLevel || 100;
+      playerCoins = (data.coins !== undefined) ? data.coins : 10;
+      playerHealth = (data.health !== undefined) ? data.health : 100;
+      playerFuel = (data.fuel !== undefined) ? data.fuel : 200;
+      playerArrows = (data.arrows !== undefined) ? data.arrows : 20;
+
+      updateLevelHUD();
+      updateCoinHUD();
+      updateHealthHUD();
+      updateFuelHUD();
+      updateArrowHUD();
+
+      inventory.fill(null);
+      if (Array.isArray(data.inventory)) {
+        data.inventory.forEach((entry, idx) => {
+          if (idx >= TOTAL_SLOTS || !entry) return;
+          // Support both the old plain-name string format and the { name, quantity } format.
+          const itemName = (typeof entry === 'string') ? entry : entry.name;
+          const quantity = (typeof entry === 'object' && entry.quantity) ? entry.quantity : 1;
+          const catKey = Object.keys(itemCatalog).find(k => itemCatalog[k].name === itemName);
+          if (catKey) {
+            const tmpl = itemCatalog[catKey];
+            inventory[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material, quantity: quantity };
+          }
+        });
+      }
+      updateInventoryUI();
+
+      if (data.position) {
+        controls.getObject().position.set(data.position.x, data.position.y, data.position.z);
+      }
+
+      if (isChestOpen) closeChest();
+      placedBases.forEach((base) => {
+        scene.remove(base);
+        const idx = interactableObjects.indexOf(base);
+        if (idx > -1) interactableObjects.splice(idx, 1);
+      });
+      placedBases.length = 0;
+    }
+
+    function renderWorldsList() {
+      if (!worldsListEl) return;
+      const sorted = [...worlds].sort((a, b) => b.updatedAt - a.updatedAt);
+
+      if (sorted.length === 0) {
+        worldsListEl.innerHTML = '<div class="worlds-empty">No worlds yet — create one above to get started!</div>';
         return;
       }
 
-      try {
-        const saveData = JSON.parse(rawData);
-        playerLevel = saveData.level || 1;
-        playerXP = saveData.xp || 0;
-        xpToNextLevel = saveData.xpToNextLevel || 100;
-        playerCoins = saveData.coins || 10;
-        playerHealth = saveData.health || 100;
-        playerFuel = (saveData.fuel !== undefined) ? saveData.fuel : 200;
-        playerArrows = (saveData.arrows !== undefined) ? saveData.arrows : 20;
-        
-        updateLevelHUD();
-        updateCoinHUD();
-        updateHealthHUD();
-        updateFuelHUD();
-        updateArrowHUD();
+      worldsListEl.innerHTML = sorted.map(w => `
+        <div class="world-entry" data-id="${w.id}">
+          <div class="world-entry-icon">🗺️</div>
+          <div class="world-entry-info">
+            <div class="world-entry-name">${escapeHtml(w.name)}${w.id === activeWorldId ? ' <span class="world-active-tag">● Active</span>' : ''}</div>
+            <div class="world-entry-meta">Map: ${escapeHtml(w.map || 'unknown')} · Lvl ${(w.data && w.data.level) || 1} · ${formatRelativeTime(w.updatedAt)}</div>
+          </div>
+          <div class="world-entry-actions">
+            <button class="world-action-btn world-play-btn" data-id="${w.id}" title="Play">▶️</button>
+            <button class="world-action-btn world-rename-btn" data-id="${w.id}" title="Rename">✏️</button>
+            <button class="world-action-btn world-delete-btn" data-id="${w.id}" title="Delete">🗑️</button>
+          </div>
+        </div>
+      `).join('');
 
-        if (Array.isArray(saveData.inventory)) {
-          saveData.inventory.forEach((entry, idx) => {
-            if (idx >= TOTAL_SLOTS) return;
-            if (!entry) {
-              inventory[idx] = null;
-            } else {
-              // Support both the old save format (plain item name string) and the
-              // newer { name, quantity } format for stacked items.
-              const itemName = (typeof entry === 'string') ? entry : entry.name;
-              const quantity = (typeof entry === 'object' && entry.quantity) ? entry.quantity : 1;
-              const catKey = Object.keys(itemCatalog).find(k => itemCatalog[k].name === itemName);
-              if (catKey) {
-                const tmpl = itemCatalog[catKey];
-                inventory[idx] = { name: tmpl.name, icon: tmpl.icon, geometry: tmpl.geometry, material: tmpl.material, quantity: quantity };
-              } else {
-                inventory[idx] = null;
-              }
-            }
-          });
+      worldsListEl.querySelectorAll('.world-play-btn').forEach(btn => btn.addEventListener('click', () => playWorld(btn.dataset.id)));
+      worldsListEl.querySelectorAll('.world-rename-btn').forEach(btn => btn.addEventListener('click', () => renameWorld(btn.dataset.id)));
+      worldsListEl.querySelectorAll('.world-delete-btn').forEach(btn => btn.addEventListener('click', () => deleteWorld(btn.dataset.id)));
+    }
+
+    function openWorldsMenu() {
+      renderWorldsList();
+      worldsModal.classList.add('open');
+    }
+
+    function closeWorldsMenu() {
+      worldsModal.classList.remove('open');
+    }
+
+    function createNewWorld() {
+      const name = (newWorldNameInput.value || '').trim() || `World ${worlds.length + 1}`;
+      const world = {
+        id: 'world_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        name: name,
+        map: currentLoadedFileName,
+        mapSource: fileNameDisplay.textContent.startsWith('Local File:') ? 'local' : 'remote',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        data: {
+          level: 1, xp: 0, xpToNextLevel: 100, coins: 10, health: 100, fuel: 200, arrows: 20,
+          inventory: new Array(TOTAL_SLOTS).fill(null), position: null, bases: []
         }
-        updateInventoryUI();
+      };
+      worlds.push(world);
+      persistWorlds();
+      newWorldNameInput.value = '';
+      renderWorldsList();
+      playWorld(world.id);
+    }
 
-        if (saveData.position) {
-          controls.getObject().position.set(saveData.position.x, saveData.position.y, saveData.position.z);
+    function playWorld(id) {
+      const world = worlds.find(w => w.id === id);
+      if (!world) return;
+
+      activeWorldId = id;
+      world.updatedAt = Date.now();
+      persistWorlds();
+
+      const startFresh = () => {
+        applySaveDataObject(world.data);
+        if (world.map === currentLoadedFileName && Array.isArray(world.data.bases) && world.data.bases.length) {
+          restoreSavedBases(world.data.bases);
         }
+        closeWorldsMenu();
+        controls.lock();
+        showToast(`🌍 Playing "${world.name}"`);
+      };
 
-        // Clear any currently placed bases, then restore the saved ones - only valid
-        // if the save was made on the map that's currently loaded.
-        if (isChestOpen) closeChest();
-        placedBases.forEach((base) => {
-          scene.remove(base);
-          const idx = interactableObjects.indexOf(base);
-          if (idx > -1) interactableObjects.splice(idx, 1);
+      // Remote maps (served from vavstorage.github.io) can be auto-loaded by name.
+      // Locally-uploaded maps can't be re-fetched automatically since only the
+      // browser session that uploaded them has the file bytes.
+      if (world.mapSource === 'remote' && world.map && world.map !== currentLoadedFileName) {
+        loadModelFromURL(baseURL + world.map, world.map, (success) => {
+          if (!success) showToast(`⚠️ Could not auto-load map "${world.map}" — using current map instead.`);
+          startFresh();
         });
-        placedBases.length = 0;
-        if (saveData.map === currentLoadedFileName) {
-          restoreSavedBases(saveData.bases);
+      } else {
+        if (world.mapSource === 'local' && world.map !== currentLoadedFileName) {
+          showToast(`ℹ️ "${world.name}" used local map "${world.map}" — re-attach it via Override Map for a full match.`);
         }
-
-        alert("Game Save Loaded!");
-      } catch (e) {
-        console.error("Save parse error:", e);
-        alert("Failed to load save file.");
+        startFresh();
       }
     }
 
-    document.getElementById('saveBtn').addEventListener('click', saveGame);
-    document.getElementById('loadBtn').addEventListener('click', loadGame);
+    function renameWorld(id) {
+      const world = worlds.find(w => w.id === id);
+      if (!world) return;
+      const newName = prompt('Rename world:', world.name);
+      if (newName && newName.trim()) {
+        world.name = newName.trim();
+        persistWorlds();
+        renderWorldsList();
+      }
+    }
+
+    function deleteWorld(id) {
+      const world = worlds.find(w => w.id === id);
+      if (!world) return;
+      if (!confirm(`Delete "${world.name}"? This can't be undone.`)) return;
+      worlds = worlds.filter(w => w.id !== id);
+      persistWorlds();
+      if (activeWorldId === id) activeWorldId = null;
+      renderWorldsList();
+    }
+
+    // Quick Save writes straight into whichever world is currently active. If no
+    // world has been chosen yet (e.g. the player just clicked "Click to Play"),
+    // it opens the world list so they can create/select one first.
+    function quickSaveActiveWorld() {
+      const world = getActiveWorld();
+      if (!world) {
+        openWorldsMenu();
+        showToast('🌍 Create or select a world to save into first.');
+        return;
+      }
+      world.data = buildSaveDataObject();
+      world.map = currentLoadedFileName;
+      world.updatedAt = Date.now();
+      persistWorlds();
+      showToast(`💾 Saved "${world.name}"`);
+    }
+
+    document.getElementById('worldsBtn').addEventListener('click', openWorldsMenu);
+    document.getElementById('close-worlds-menu').addEventListener('click', closeWorldsMenu);
+    document.getElementById('createWorldBtn').addEventListener('click', createNewWorld);
+    newWorldNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); createNewWorld(); }
+    });
+    document.getElementById('saveBtn').addEventListener('click', quickSaveActiveWorld);
+
+    // Autosave the active world periodically while playing, and once more on the
+    // way out, so progress survives an accidental tab close.
+    setInterval(() => {
+      if (!controls.isLocked || !activeWorldId) return;
+      const world = getActiveWorld();
+      if (!world) return;
+      world.data = buildSaveDataObject();
+      world.map = currentLoadedFileName;
+      world.updatedAt = Date.now();
+      persistWorlds();
+      showToast(`💾 Autosaved "${world.name}"`);
+    }, AUTOSAVE_INTERVAL_MS);
+
+    window.addEventListener('beforeunload', () => {
+      const world = getActiveWorld();
+      if (!world) return;
+      world.data = buildSaveDataObject();
+      world.map = currentLoadedFileName;
+      world.updatedAt = Date.now();
+      persistWorlds();
+    });
 
     // Keyboard Controls
     const onKeyDown = (e) => {
@@ -3010,6 +3404,10 @@
       if (e.code === 'Escape') {
         if (multiplayerMenu && multiplayerMenu.classList.contains('open')) {
           closeMultiplayerMenu();
+          return;
+        }
+        if (worldsModal && worldsModal.classList.contains('open')) {
+          closeWorldsMenu();
           return;
         }
         if (isShopOpen) closeShop();
@@ -3185,6 +3583,11 @@
     }
 
     loadModelFromURL(baseURL + 'model.glb', 'model.glb');
+
+    // Load the worlds list now that currentLoadedFileName exists (used as a
+    // fallback map name when migrating an old single-slot save).
+    loadWorldsFromStorage();
+    migrateLegacySaveIfNeeded();
 
     fileInput.addEventListener('change', (event) => {
       const file = event.target.files[0];
