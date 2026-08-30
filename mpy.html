@@ -802,7 +802,7 @@
 
       <div class="instructions-text">
         <b>Controls:</b> WASD to Move | Space to Jump / Fly Helicopter | Left Click to Attack / Shoot Bow<br>
-        <b>Interact / Shop / Gas Station / Chest:</b> E | <b>Inventory:</b> I / TAB | <b>Use Consumable:</b> Right Click / F | <b>Drop:</b> Q | <b>Place Base (needs a Base Kit):</b> B | <b>Pause:</b> ESC
+        <b>Interact / Shop / Gas Station / Chest:</b> E | <b>Inventory:</b> I / TAB | <b>Use Consumable:</b> Right Click / F | <b>Drop:</b> Q | <b>Place Base (needs a Base Kit):</b> B | <b>Unbuild Base:</b> G | <b>Pause:</b> ESC
       </div>
     </div>
   </div>
@@ -1801,6 +1801,7 @@
     const raycasterUp = new THREE.Raycaster();
     const raycasterHorizontal = new THREE.Raycaster();
     const raycasterInteract = new THREE.Raycaster();
+    const raycasterShelter = new THREE.Raycaster();
 
     function performJump() {
       if (canJump) {
@@ -2630,6 +2631,7 @@
       if (itemMesh.userData.isCoin) {
         playerCoins += 10;
         updateCoinHUD();
+        addXP(10);
       } else {
         const added = addItemToInventory({
           name: itemMesh.userData.name,
@@ -2826,6 +2828,33 @@
 
       spawnBaseAt(placePos, rotationY);
       removeItemByName('Base Kit', 1);
+    }
+
+    // --- BASE REMOVAL (unbuild a placed base back into a Base Kit) ---
+    // Look at a placed base and press G. The base's storage must be empty first,
+    // so nothing stored inside it is ever lost when it's picked back up.
+    function unbuildBaseAtCrosshair() {
+      if (!hoveredObject || !hoveredObject.userData.isBaseChest) return;
+
+      const base = hoveredObject.userData.chestOwner;
+      if (!base) return;
+
+      const storage = base.userData.chestStorage || [];
+      if (storage.some(slot => slot)) {
+        alert("Empty the base's storage before unbuilding it!");
+        return;
+      }
+
+      if (!addItemToInventory(itemCatalog.base_kit)) return;
+
+      scene.remove(base);
+      const placedIdx = placedBases.indexOf(base);
+      if (placedIdx > -1) placedBases.splice(placedIdx, 1);
+      const interactIdx = interactableObjects.indexOf(base);
+      if (interactIdx > -1) interactableObjects.splice(interactIdx, 1);
+
+      hoveredObject = null;
+      interactionPrompt.style.display = 'none';
     }
 
     // Restores bases from a save file once base.glb has finished loading, retrying
@@ -3455,6 +3484,7 @@
         case 'KeyF': useSelectedItem(); break;
         case 'KeyQ': if (controls.isLocked) dropSelectedItem(); break;
         case 'KeyB': if (controls.isLocked) placeBaseAtCrosshair(); break;
+        case 'KeyG': if (controls.isLocked) unbuildBaseAtCrosshair(); break;
         case 'Digit1': selectedSlot = 0; updateInventoryUI(); break;
         case 'Digit2': selectedSlot = 1; updateInventoryUI(); break;
         case 'Digit3': selectedSlot = 2; updateInventoryUI(); break;
@@ -3646,7 +3676,22 @@
   }
   return false;
 }
-    
+
+    // Returns true if a placed base sits between fromPos and toPos, so it blocks
+    // sight and gunfire the same way it blocks movement - this is what makes a
+    // base usable as real shelter, not just a storage box.
+    function isPathBlockedByBase(fromPos, toPos) {
+      if (placedBases.length === 0) return false;
+      const dir = toPos.clone().sub(fromPos);
+      const dist = dir.length();
+      if (dist < 0.001) return false;
+      dir.normalize();
+      raycasterShelter.set(fromPos, dir);
+      raycasterShelter.far = dist;
+      const hits = raycasterShelter.intersectObjects(placedBases, true);
+      return hits.length > 0 && hits[0].distance < dist;
+    }
+
     function animate() {
       requestAnimationFrame(animate);
       const time = performance.now();
@@ -3996,7 +4041,10 @@ if (targets.length > 0) {
 
             if (time - heli.lastShootTime > heli.shootCooldown) {
               heli.lastShootTime = time;
-              heliShootLaser(heli, playerPos);
+              // A placed base blocks the helicopter's shot the same way it blocks the player's view.
+              if (!isPathBlockedByBase(heli.mesh.position, playerPos)) {
+                heliShootLaser(heli, playerPos);
+              }
             }
           } else {
             if (heli.mesh.position.distanceTo(heli.targetWaypoint) < 3.0) {
@@ -4023,7 +4071,21 @@ if (targets.length > 0) {
         for (let i = heliProjectiles.length - 1; i >= 0; i--) {
           const proj = heliProjectiles[i];
           proj.life -= delta;
-          proj.mesh.position.addScaledVector(proj.direction, proj.speed * delta);
+
+          const prevProjPos = proj.mesh.position.clone();
+          const projStep = proj.speed * delta;
+          proj.mesh.position.addScaledVector(proj.direction, projStep);
+
+          // Stop a laser in flight if a base is now in its way (e.g. the player just ducked behind one).
+          if (placedBases.length > 0) {
+            raycasterShelter.set(prevProjPos, proj.direction);
+            raycasterShelter.far = projStep + 0.1;
+            if (raycasterShelter.intersectObjects(placedBases, true).length > 0) {
+              scene.remove(proj.mesh);
+              heliProjectiles.splice(i, 1);
+              continue;
+            }
+          }
 
           const projDist = proj.mesh.position.distanceTo(playerPos);
           if (projDist < 0.9) {
@@ -4044,17 +4106,26 @@ if (targets.length > 0) {
           const distToPlayer = enemy.mesh.position.distanceTo(playerPos);
 
           if (distToPlayer < 20.0) {
-            const moveDir = playerPos.clone().sub(enemy.mesh.position);
-            moveDir.y = 0;
-            if (moveDir.length() > 0.8) {
-              moveDir.normalize();
-              enemy.mesh.position.addScaledVector(moveDir, enemy.speed * delta);
-              enemy.mesh.lookAt(playerPos.x, enemy.mesh.position.y, playerPos.z);
-            }
+            // A placed base blocks ground enemies too - hide inside or behind one
+            // and they can neither reach nor attack the player.
+            const sheltered = isPathBlockedByBase(enemy.mesh.position, playerPos);
 
-            if (distToPlayer < 1.5 && time - enemy.lastAttackTime > 1200) {
-              enemy.lastAttackTime = time;
-              takeDamage(15);
+            if (!sheltered) {
+              const moveDir = playerPos.clone().sub(enemy.mesh.position);
+              moveDir.y = 0;
+              if (moveDir.length() > 0.8) {
+                moveDir.normalize();
+                const nextEnemyPos = enemy.mesh.position.clone().addScaledVector(moveDir, enemy.speed * delta);
+                if (!isPathBlockedByBase(enemy.mesh.position, nextEnemyPos)) {
+                  enemy.mesh.position.copy(nextEnemyPos);
+                }
+                enemy.mesh.lookAt(playerPos.x, enemy.mesh.position.y, playerPos.z);
+              }
+
+              if (distToPlayer < 1.5 && time - enemy.lastAttackTime > 1200) {
+                enemy.lastAttackTime = time;
+                takeDamage(15);
+              }
             }
           }
         }
@@ -4072,7 +4143,13 @@ if (targets.length > 0) {
             hoveredObject = topObj;
             promptItemName.textContent = topObj.userData.name || 'Item';
             if (promptActionText) {
-              promptActionText.innerHTML = topObj.userData.isMineable ? 'Hold <b>E</b> to mine' : 'Press <b>E</b> to interact with';
+              if (topObj.userData.isMineable) {
+                promptActionText.innerHTML = 'Hold <b>E</b> to mine';
+              } else if (topObj.userData.isBaseChest) {
+                promptActionText.innerHTML = 'Press <b>E</b> to open &bull; <b>G</b> to unbuild';
+              } else {
+                promptActionText.innerHTML = 'Press <b>E</b> to interact with';
+              }
             }
             interactionPrompt.style.display = 'block';
           } else {
