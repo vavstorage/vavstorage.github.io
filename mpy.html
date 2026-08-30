@@ -1906,7 +1906,15 @@
       );
     }
 
+    // Helicopters ramp up from weaker (0.4x) at level 5 to full strength (1.0x) at level 10+
+    function getHeliDifficultyScale() {
+      if (playerLevel >= 10) return 1.0;
+      if (playerLevel <= 5) return 0.4;
+      return 0.4 + (playerLevel - 5) * (0.6 / 5);
+    }
+
     function spawnEnemyHelicopter() {
+      if (playerLevel < 5) return;
       if (enemyHelicopters.length >= maxHelicoptersInSky) return;
 
       const spawnerPos = getSpawnerPosition();
@@ -1919,17 +1927,23 @@
 
       const firstPatrolPoint = getRandomPointInRadius(spawnerPos, HELI_PATROL_RADIUS);
 
+      const scale = getHeliDifficultyScale();
+      const scaledHealth = Math.round(75 * scale);
+      const scaledDamage = Math.max(1, Math.round(12 * scale));
+      const scaledCooldown = Math.round(1500 / scale);
+
       enemyHelicopters.push({
         mesh: heliObj.mesh,
         mainRotor: heliObj.mainRotor,
         tailRotor: heliObj.tailRotor,
-        health: 75,
-        maxHealth: 75,
+        health: scaledHealth,
+        maxHealth: scaledHealth,
+        damage: scaledDamage,
         speed: 6.5,
         spawnerCenter: spawnerPos.clone(),
         targetWaypoint: new THREE.Vector3(firstPatrolPoint.x, spawnAltitude, firstPatrolPoint.z),
         lastShootTime: 0,
-        shootCooldown: 1500,
+        shootCooldown: scaledCooldown,
         altitude: spawnAltitude
       });
     }
@@ -1953,7 +1967,8 @@
         mesh: laserMesh,
         direction: fireDir,
         speed: 24,
-        life: 2.5
+        life: 2.5,
+        damage: heli.damage || 12
       });
     }
 
@@ -4012,7 +4027,7 @@ if (targets.length > 0) {
 
           const projDist = proj.mesh.position.distanceTo(playerPos);
           if (projDist < 0.9) {
-            takeDamage(12);
+            takeDamage(proj.damage);
             scene.remove(proj.mesh);
             heliProjectiles.splice(i, 1);
             continue;
