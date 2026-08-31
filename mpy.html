@@ -181,6 +181,17 @@
       border: 1px solid #d2b48c;
     }
 
+    #airspeed-hud {
+      color: #4dd2ff;
+      border: 1px solid #4dd2ff;
+      display: none;
+    }
+
+    #airspeed-hud.stalling {
+      color: #ff4d4d;
+      border: 1px solid #ff4d4d;
+    }
+
     #coin-hud {
       color: #ffd700;
       border: 1px solid #ffd700;
@@ -863,6 +874,7 @@
     <div id="health-hud" class="hud-box">❤️ Health: <span id="health-count">100</span> / 100</div>
     <div id="fuel-hud" class="hud-box">⛽ Fuel: <span id="fuel-count">200</span> / 200</div>
     <div id="arrow-hud" class="hud-box">🏹 Arrows: <span id="arrow-count">20</span></div>
+    <div id="airspeed-hud" class="hud-box">🧭 Airspeed: <span id="airspeed-count">0</span></div>
     <div id="coin-hud" class="hud-box">🪙 Coins: <span id="coin-count">10</span></div>
 
     <div id="inv-hud-btn" class="hud-box">🎒 Inventory [I]</div>
@@ -1047,6 +1059,8 @@
     const damageFlash = document.getElementById('damage-flash');
     const healthCountDisplay = document.getElementById('health-count');
     const fuelCountDisplay = document.getElementById('fuel-count');
+    const airspeedHud = document.getElementById('airspeed-hud');
+    const airspeedCountDisplay = document.getElementById('airspeed-count');
     const arrowCountDisplay = document.getElementById('arrow-count');
     const fileInput = document.getElementById('fileInput');
     const fileNameDisplay = document.getElementById('file-name');
@@ -1809,6 +1823,7 @@
 
     const velocity = new THREE.Vector3();
     const direction = new THREE.Vector3();
+    const flightDir = new THREE.Vector3();
 
     const moveSpeed = 5.0;          
     const gravity = 25.0;            
@@ -1817,6 +1832,16 @@
     const terminalVelocity = -35.0;  
     const groundDamping = 10.0;      
     const airDamping = 2.0;          
+
+    // Plane/jet flight model: airspeed builds up and bleeds off gradually (momentum),
+    // forward thrust follows where you're actually looking (pitch + yaw), and dropping
+    // below stall speed means losing lift instead of hovering in place like the helicopter.
+    let planeSpeed = 0;
+    let planeBankVisual = 0;
+    const planeAccel = 5.5;
+    const planeDrag = 0.6;
+    const planeStallSpeedFactor = 0.35;
+    const planeTurnRate = 1.4;
 
     const raycasterDown = new THREE.Raycaster();
     const raycasterUp = new THREE.Raycaster();
@@ -3875,6 +3900,7 @@
         }
 
         let currentMoveSpeed = moveSpeed;
+        let isStalling = false;
 
         if (isFlyingHelicopter) {
           if (playerFuel > 0) {
@@ -3896,23 +3922,60 @@
             currentMoveSpeed = moveSpeed;
           }
         } else if (isFlyingPlane || isFlyingJet) {
+          const maxAirSpeed = moveSpeed * (isFlyingJet ? 6.0 : 4.5);
+          const boostSpeed = moveSpeed * (isFlyingJet ? 8.0 : 6.0);
+          const stallSpeed = maxAirSpeed * planeStallSpeedFactor;
+
           if (playerFuel > 0) {
-            currentMoveSpeed = moveSpeed * (isFlyingJet ? 6.0 : 4.5);
+            // Throttle: W builds airspeed toward top speed (Space = afterburner/full power),
+            // S cuts power back toward stall speed, and with no input airspeed bleeds off
+            // like real drag - none of this snaps instantly, it eases in like momentum should.
+            let targetSpeed = planeSpeed;
+            if (isSpacePressed) targetSpeed = boostSpeed;
+            else if (moveForward) targetSpeed = maxAirSpeed;
+            else if (moveBackward) targetSpeed = stallSpeed * 0.5;
 
-            if (isSpacePressed) {
-              velocity.y = Math.min(velocity.y + 30.0 * delta, isFlyingJet ? 16.0 : 11.0);
-              playerFuel = Math.max(0, playerFuel - (isFlyingJet ? 3.5 : 2.0) * delta);
-              updateFuelHUD();
-            } else {
-              if (velocity.y < -3.0) velocity.y = -3.0;
+            const accelRate = isSpacePressed ? planeAccel * 1.4 : planeAccel;
+            planeSpeed += (targetSpeed - planeSpeed) * Math.min(1, accelRate * delta);
+            if (!moveForward && !moveBackward && !isSpacePressed) {
+              planeSpeed -= planeSpeed * planeDrag * delta;
+            }
+            planeSpeed = Math.max(planeSpeed, 0);
+
+            isStalling = planeSpeed < stallSpeed;
+
+            // Rudder turn: A/D yaw the aircraft directly and bank into the turn, instead of
+            // strafing sideways the way the helicopter and car do.
+            if (moveLeft) controls.getObject().rotation.y += planeTurnRate * delta;
+            if (moveRight) controls.getObject().rotation.y -= planeTurnRate * delta;
+            const targetBank = moveLeft ? 0.6 : moveRight ? -0.6 : 0;
+            planeBankVisual += (targetBank - planeBankVisual) * Math.min(1, 6 * delta);
+
+            // Thrust follows exactly where you're looking (yaw + pitch): look up to climb,
+            // look down to dive - real flight, not a Space-to-hover quadcopter.
+            camera.getWorldDirection(flightDir);
+            const climbSpeed = flightDir.y * planeSpeed;
+            velocity.y = climbSpeed;
+
+            if (isStalling) {
+              // Not enough airspeed to generate lift - the nose drops and gravity wins.
+              const stallFactor = 1 - (planeSpeed / stallSpeed);
+              velocity.y -= gravity * stallFactor * delta * 4;
             }
 
-            if (isMoving) {
-              playerFuel = Math.max(0, playerFuel - (isFlyingJet ? 2.2 : 1.2) * delta);
-              updateFuelHUD();
-            }
+            const horizontalSpeed = Math.sqrt(Math.max(planeSpeed * planeSpeed - climbSpeed * climbSpeed, 0));
+            velocity.z = -horizontalSpeed;
+            velocity.x = 0;
+            currentMoveSpeed = 0; // forward motion is fully driven by planeSpeed/heading above, not by WASD strafing
+
+            const throttleFraction = planeSpeed / maxAirSpeed;
+            playerFuel = Math.max(0, playerFuel - (isFlyingJet ? 2.2 : 1.3) * throttleFraction * delta - (isSpacePressed ? (isFlyingJet ? 2.2 : 1.3) * delta : 0));
+            updateFuelHUD();
           } else {
             currentMoveSpeed = moveSpeed;
+            planeSpeed = Math.max(0, planeSpeed - planeSpeed * 2.0 * delta);
+            // Dead stick, no lift left - the aircraft actually falls instead of hovering.
+            velocity.y -= gravity * delta;
           }
         } else if (isDrivingCar) {
           if (playerFuel > 0) {
@@ -3924,6 +3987,13 @@
           } else {
             currentMoveSpeed = moveSpeed; 
           }
+        }
+
+        if (!isFlyingPlane && !isFlyingJet) {
+          // Not flying a plane right now - let any leftover airspeed/bank wind back down
+          // so re-equipping later starts from a stop instead of resuming mid-flight speed.
+          planeSpeed = Math.max(0, planeSpeed - planeSpeed * 3.0 * delta);
+          planeBankVisual += (0 - planeBankVisual) * Math.min(1, 6 * delta);
         }
 
         if (heldMesh && isFlyingHelicopter) {
@@ -3948,7 +4018,22 @@
           });
         }
 
-        const damping = isGrounded ? groundDamping : airDamping;
+        if (heldMesh && (isFlyingPlane || isFlyingJet)) {
+          heldMesh.rotation.z = planeBankVisual;
+        }
+
+        if (airspeedHud) {
+          if (isFlyingPlane || isFlyingJet) {
+            airspeedHud.style.display = 'block';
+            airspeedCountDisplay.textContent = Math.round(planeSpeed * 10);
+            airspeedHud.classList.toggle('stalling', isStalling);
+          } else {
+            airspeedHud.style.display = 'none';
+            airspeedHud.classList.remove('stalling');
+          }
+        }
+
+        const damping = (isFlyingPlane || isFlyingJet) ? 0 : (isGrounded ? groundDamping : airDamping);
         velocity.x -= velocity.x * damping * delta;
         velocity.z -= velocity.z * damping * delta;
 
