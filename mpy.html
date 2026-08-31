@@ -307,7 +307,7 @@
     }
 
     /* Shop, Inventory & Chest Modals UI */
-    #shop-modal, #inventory-modal, #chest-modal {
+    #shop-modal, #shop2-modal, #inventory-modal, #chest-modal {
       position: absolute;
       top: 50%;
       left: 50%;
@@ -331,6 +331,10 @@
       border: 2px solid #ffd700;
     }
 
+    #shop2-modal {
+      border: 2px solid #00e5ff;
+    }
+
     #inventory-modal {
       border: 2px solid #4da6ff;
     }
@@ -347,6 +351,10 @@
       font-weight: bold;
       border-bottom: 1px solid #444;
       padding-bottom: 10px;
+    }
+
+    #shop2-modal .shop-header {
+      color: #00e5ff;
     }
 
     #inventory-modal .shop-header {
@@ -916,23 +924,8 @@
     </div>
 
     <div class="shop-item">
-      <div class="shop-item-info"><span>✈️</span> <b>Propeller Plane (4.5x Speed)</b></div>
-      <button class="buy-btn" data-item="plane" data-price="60" data-vavite="8">60 🪙 + 8 🔮 Buy</button>
-    </div>
-
-    <div class="shop-item">
-      <div class="shop-item-info"><span>🛩️</span> <b>Jet Fighter (6x Speed)</b></div>
-      <button class="buy-btn" data-item="jet" data-price="100" data-vavite="15">100 🪙 + 15 🔮 Buy</button>
-    </div>
-
-    <div class="shop-item">
       <div class="shop-item-info"><span>🏎️</span> <b>Sports Car (3x Speed)</b></div>
       <button class="buy-btn" data-item="car" data-price="25" data-vavite="3">25 🪙 + 3 🔮 Buy</button>
-    </div>
-
-    <div class="shop-item">
-      <div class="shop-item-info"><span>🏠</span> <b>Base Kit (Storage Chest)</b></div>
-      <button class="buy-btn" data-item="base_kit" data-price="30">30 🪙 Buy</button>
     </div>
 
     <div class="shop-item">
@@ -961,6 +954,27 @@
     </div>
 
     <button class="close-shop-btn" id="closeShopBtn">Close Shop</button>
+  </div>
+
+  <div id="shop2-modal">
+    <div class="shop-header">🛫 Vehicle &amp; Base Depot</div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>✈️</span> <b>Propeller Plane (4.5x Speed)</b></div>
+      <button class="buy-btn" data-item="plane" data-price="60" data-vavite="8">60 🪙 + 8 🔮 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🛩️</span> <b>Jet Fighter (6x Speed)</b></div>
+      <button class="buy-btn" data-item="jet" data-price="100" data-vavite="15">100 🪙 + 15 🔮 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🏠</span> <b>Base Kit (Storage Chest)</b></div>
+      <button class="buy-btn" data-item="base_kit" data-price="30">30 🪙 Buy</button>
+    </div>
+
+    <button class="close-shop-btn" id="closeShop2Btn">Close Shop</button>
   </div>
 
   <div id="inventory-modal">
@@ -1052,6 +1066,7 @@
     const blocker = document.getElementById('blocker');
     const startBtn = document.getElementById('startBtn');
     const shopModal = document.getElementById('shop-modal');
+    const shop2Modal = document.getElementById('shop2-modal');
     const inventoryModal = document.getElementById('inventory-modal');
     const chestModal = document.getElementById('chest-modal');
     const invHudBtn = document.getElementById('inv-hud-btn');
@@ -1078,6 +1093,7 @@
     controls.addEventListener('lock', () => {
       blocker.style.display = 'none';
       shopModal.style.display = 'none';
+      shop2Modal.style.display = 'none';
       inventoryModal.style.display = 'none';
       chestModal.style.display = 'none';
       isShopOpen = false;
@@ -1438,6 +1454,51 @@
       },
       undefined,
       (err) => console.warn('Could not load base.glb', err)
+    );
+
+    // --- SHOP GLB TEMPLATES (used for the fallback stands when the loaded map
+    // has no "shop"/"shop2"-named mesh of its own) ---
+    let shopModelTemplate = null;
+    let shopModelGroundOffset = 0;
+    let shop2ModelTemplate = null;
+    let shop2ModelGroundOffset = 0;
+
+    loader.load(
+      baseURL + 'shop.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        shopModelGroundOffset = -box.min.y;
+        shopModelTemplate = model;
+
+        // A placeholder stand may already be standing in for this model if the
+        // map finished loading before shop.glb did - swap it for the real mesh.
+        if (fallbackShop) {
+          const pos = fallbackShop.position.clone();
+          removeFallbackShop();
+          fallbackShop = createFallbackShopStand(pos);
+        }
+      },
+      undefined,
+      (err) => console.warn('Could not load shop.glb', err)
+    );
+
+    loader.load(
+      baseURL + 'shop2.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        shop2ModelGroundOffset = -box.min.y;
+        shop2ModelTemplate = model;
+
+        if (fallbackShop2) {
+          const pos = fallbackShop2.position.clone();
+          removeFallbackShop2();
+          fallbackShop2 = createFallbackShop2Stand(pos);
+        }
+      },
+      undefined,
+      (err) => console.warn('Could not load shop2.glb', err)
     );
 
     // --- HEALTH, FUEL & ARROW HUD LOGIC ---
@@ -1842,6 +1903,7 @@
     const planeDrag = 0.6;
     const planeStallSpeedFactor = 0.35;
     const planeTurnRate = 1.4;
+    let lastNoRunwayWarning = 0; // throttles the "need a runway" toast so it doesn't spam every frame
 
     const raycasterDown = new THREE.Raycaster();
     const raycasterUp = new THREE.Raycaster();
@@ -2234,6 +2296,7 @@
     const placedBases = [];
     let hoveredObject = null;
     let fallbackShop = null;
+    let fallbackShop2 = null;
     let fallbackVavite = null;
     let fallbackIronOre = null;
 
@@ -2405,23 +2468,32 @@
     spawnCoinAt(new THREE.Vector3(0, 2.5, -3.5));
     setInterval(spawnRandomCoin, 15000);
 
-    function createFallbackShopStand(position) {
-      const shopGroup = new THREE.Group();
+    // Simple placeholder counter+sign, shown only until the matching shop.glb /
+    // shop2.glb has finished downloading (or if it fails to load at all).
+    function buildPlaceholderShopStand(signColor) {
+      const group = new THREE.Group();
       const counter = new THREE.Mesh(
         new THREE.BoxGeometry(2, 0.8, 1),
         new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 })
       );
       counter.position.y = 0.4;
-      shopGroup.add(counter);
+      group.add(counter);
 
       const sign = new THREE.Mesh(
         new THREE.BoxGeometry(1.6, 0.5, 0.1),
-        new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.5 })
+        new THREE.MeshStandardMaterial({ color: signColor, metalness: 0.5 })
       );
       sign.position.set(0, 1.5, 0);
-      shopGroup.add(sign);
+      group.add(sign);
 
+      return group;
+    }
+
+    function createFallbackShopStand(position) {
+      const shopGroup = shopModelTemplate ? shopModelTemplate.clone(true) : buildPlaceholderShopStand(0xffd700);
       shopGroup.position.copy(position);
+      if (shopModelTemplate) shopGroup.position.y += shopModelGroundOffset; // sit flush on the surface regardless of the model's pivot
+
       shopGroup.traverse((child) => {
         child.userData.isShop = true;
         child.userData.name = 'Item Shop';
@@ -2444,6 +2516,37 @@
         fallbackShop = null;
       }
     }
+
+    // Shop2 sells vehicles (planes/jets) and base kits - separate mesh (shop2.glb)
+    // so it reads as a distinct stand from the main item shop.
+    function createFallbackShop2Stand(position) {
+      const shopGroup = shop2ModelTemplate ? shop2ModelTemplate.clone(true) : buildPlaceholderShopStand(0x00e5ff);
+      shopGroup.position.copy(position);
+      if (shop2ModelTemplate) shopGroup.position.y += shop2ModelGroundOffset;
+
+      shopGroup.traverse((child) => {
+        child.userData.isShop2 = true;
+        child.userData.name = 'Vehicle & Base Depot';
+      });
+
+      scene.add(shopGroup);
+      interactableObjects.push(shopGroup);
+      return shopGroup;
+    }
+
+    function removeFallbackShop2() {
+      if (fallbackShop2) {
+        scene.remove(fallbackShop2);
+        fallbackShop2.traverse((child) => {
+          const idx = interactableObjects.indexOf(child);
+          if (idx > -1) interactableObjects.splice(idx, 1);
+        });
+        const idx = interactableObjects.indexOf(fallbackShop2);
+        if (idx > -1) interactableObjects.splice(idx, 1);
+        fallbackShop2 = null;
+      }
+    }
+
 
     // A glowing crystal deposit used when the loaded map has no "vavite"-named
     // object of its own, so mining vavite always works out of the box.
@@ -2526,36 +2629,57 @@
 
     function setupShopFromGLTF(gltfScene) {
       for (let i = interactableObjects.length - 1; i >= 0; i--) {
-        if (interactableObjects[i].userData && interactableObjects[i].userData.isGLBShop) {
+        if (interactableObjects[i].userData && (interactableObjects[i].userData.isGLBShop || interactableObjects[i].userData.isGLBShop2)) {
           interactableObjects.splice(i, 1);
         }
       }
 
       removeFallbackShop();
+      removeFallbackShop2();
 
       let foundShop = false;
+      let foundShop2 = false;
+      // Checked first/specifically so a mesh literally named "shop2" (or a close
+      // variant) becomes the vehicle/base depot instead of falling into the
+      // generic "shop" bucket below - substring-matching "shop" would otherwise
+      // catch "shop2" too since it contains the word "shop".
+      const shop2Keywords = ['shop2', 'shop_2', 'shop-2', 'shop 2'];
       const shopKeywords = ['shop', 'store', 'vendor', 'merchant', 'counter', 'stand', 'market', 'kiosk', 'stall', 'npc', 'seller'];
 
       gltfScene.traverse((child) => {
-        if (child.name) {
-          const lowerName = child.name.toLowerCase();
-          const isShopNode = shopKeywords.some(keyword => lowerName.includes(keyword));
+        if (!child.name) return;
+        const lowerName = child.name.toLowerCase();
 
-          if (isShopNode) {
-            foundShop = true;
-            const displayName = child.name.replace(/_/g, ' ') || 'Item Shop';
-            child.traverse((subChild) => {
-              subChild.userData.isShop = true;
-              subChild.userData.isGLBShop = true;
-              subChild.userData.name = displayName;
-              if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
-            });
-          }
+        if (shop2Keywords.some(keyword => lowerName.includes(keyword))) {
+          foundShop2 = true;
+          const displayName = child.name.replace(/_/g, ' ') || 'Vehicle & Base Depot';
+          child.traverse((subChild) => {
+            subChild.userData.isShop2 = true;
+            subChild.userData.isGLBShop2 = true;
+            subChild.userData.name = displayName;
+            if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
+          });
+          return;
+        }
+
+        const isShopNode = shopKeywords.some(keyword => lowerName.includes(keyword));
+        if (isShopNode) {
+          foundShop = true;
+          const displayName = child.name.replace(/_/g, ' ') || 'Item Shop';
+          child.traverse((subChild) => {
+            subChild.userData.isShop = true;
+            subChild.userData.isGLBShop = true;
+            subChild.userData.name = displayName;
+            if (!interactableObjects.includes(subChild)) interactableObjects.push(subChild);
+          });
         }
       });
 
       if (!foundShop) {
         fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
+      }
+      if (!foundShop2) {
+        fallbackShop2 = createFallbackShop2Stand(new THREE.Vector3(-3, 0, -3));
       }
     }
 
@@ -3045,8 +3169,17 @@
       cancelMining();
     }
 
+    function openShop2() {
+      isShopOpen = true;
+      if (controls.isLocked) controls.unlock();
+      shop2Modal.style.display = 'flex';
+      interactionPrompt.style.display = 'none';
+      cancelMining();
+    }
+
     function closeShop() {
       shopModal.style.display = 'none';
+      shop2Modal.style.display = 'none';
       isShopOpen = false;
       controls.lock();
     }
@@ -3152,6 +3285,7 @@
     }
 
     document.getElementById('closeShopBtn').addEventListener('click', closeShop);
+    document.getElementById('closeShop2Btn').addEventListener('click', closeShop);
     document.getElementById('closeInvBtn').addEventListener('click', closeInventory);
     document.getElementById('closeChestBtn').addEventListener('click', closeChest);
     invHudBtn.addEventListener('click', toggleInventory);
@@ -3190,7 +3324,8 @@
 
     function handleInteraction() {
       if (hoveredObject && controls.isLocked) {
-        if (hoveredObject.userData.isShop) openShop();
+        if (hoveredObject.userData.isShop2) openShop2();
+        else if (hoveredObject.userData.isShop) openShop();
         else if (hoveredObject.userData.isGasStation) refuelAtStation();
         else if (hoveredObject.userData.isBaseChest) openChest(hoveredObject.userData.chestOwner);
         else if (hoveredObject.userData.isItem) pickupItem(hoveredObject);
@@ -3763,6 +3898,7 @@
           loadingStatus.textContent = `⚠️ Failed to load: ${displayName}`;
           loadingStatus.style.color = '#ff4d4d';
           if (!fallbackShop) fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
+          if (!fallbackShop2) fallbackShop2 = createFallbackShop2Stand(new THREE.Vector3(-3, 0, -3));
           if (onComplete) onComplete(false);
         }
       );
@@ -3786,6 +3922,26 @@
     // 6. Main Game Loop
     let prevTime = performance.now();
     let walkAnimTimer = 0;
+
+   // Looks straight down from the player's feet and checks whether the surface
+   // directly underneath belongs to a mesh named (or nested under a mesh named)
+   // "airstrip" or "road" - that's the only ground a plane/jet is allowed to lift off from.
+   function isOnTakeoffSurface(targets) {
+     if (!targets || targets.length === 0) return false;
+     raycasterDown.set(controls.getObject().position, new THREE.Vector3(0, -1, 0));
+     const hits = raycasterDown.intersectObjects(targets, true);
+     if (hits.length === 0) return false;
+     const hit = hits[0];
+     if (hit.distance > playerHeight + maxStepHeight) return false; // not actually standing on it
+
+     const nameMatches = (n) => !!n && (n.toLowerCase().includes('airstrip') || n.toLowerCase().includes('road'));
+     if (nameMatches(hit.object.name)) return true;
+     let found = false;
+     hit.object.traverseAncestors((ancestor) => {
+       if (nameMatches(ancestor.name)) found = true;
+     });
+     return found;
+   }
 
    function checkWallCollision(startPos, moveVector, targets) {
   const dist = moveVector.length();
@@ -3956,6 +4112,19 @@
             camera.getWorldDirection(flightDir);
             const climbSpeed = flightDir.y * planeSpeed;
             velocity.y = climbSpeed;
+
+            // Wheels-down aircraft can only leave the ground from an airstrip or road -
+            // everywhere else they're pinned to the surface (still free to taxi around).
+            if (isGrounded && velocity.y > 0) {
+              const surfaceTargets = loadedModel ? [loadedModel, ...placedBases] : [...placedBases];
+              if (surfaceTargets.length > 0 && !isOnTakeoffSurface(surfaceTargets)) {
+                velocity.y = 0;
+                if (time - lastNoRunwayWarning > 2000) {
+                  showToast('Need an airstrip or road to take off');
+                  lastNoRunwayWarning = time;
+                }
+              }
+            }
 
             if (isStalling) {
               // Not enough airspeed to generate lift - the nose drops and gravity wins.
@@ -4373,11 +4542,11 @@ if (targets.length > 0) {
 
         if (intersects.length > 0 && intersects[0].distance < 3.5) {
           let topObj = intersects[0].object;
-          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isGasStation && !topObj.userData.isItem && !topObj.userData.isMineable && !topObj.userData.isBaseChest) {
+          while (topObj.parent && topObj.parent !== scene && !topObj.userData.isShop && !topObj.userData.isShop2 && !topObj.userData.isGasStation && !topObj.userData.isItem && !topObj.userData.isMineable && !topObj.userData.isBaseChest) {
             topObj = topObj.parent;
           }
 
-          if (topObj.userData.isShop || topObj.userData.isGasStation || topObj.userData.isItem || topObj.userData.isMineable || topObj.userData.isBaseChest) {
+          if (topObj.userData.isShop || topObj.userData.isShop2 || topObj.userData.isGasStation || topObj.userData.isItem || topObj.userData.isMineable || topObj.userData.isBaseChest) {
             hoveredObject = topObj;
             promptItemName.textContent = topObj.userData.name || 'Item';
             if (promptActionText) {
