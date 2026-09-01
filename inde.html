@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>loading..</title>
+  <link rel="stylesheet" href="style.css">
+    <!-- PeerJS WebRTC multiplayer library -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <div id="damage-flash"></div>
+  <div id="save-toast"></div>
+
+  <div id="blocker">
+    <div class="card">
+      <h1>3D Walkthrough</h1>
+      
+      <div id="loading-status">⏳ Loading assets from vavstorage.github.io...</div>
+
+      <div class="btn-row">
+        <label class="file-upload-btn">
+          📁 Override Map (.GLB)
+          <input type="file" id="fileInput" accept=".glb,.gltf" />
+        </label>
+        <button id="worldsBtn" class="action-btn" style="background-color: #7c3aed;">🌍 Worlds</button>
+        <button id="saveBtn" class="action-btn" style="background-color: #007bff;">💾 Quick Save</button>
+      </div>
+
+      <span id="file-name">Default: vavstorage.github.io/model.glb</span>
+
+      <button id="startBtn">CLICK TO PLAY</button>
+
+      <div class="instructions-text">
+        <b>Controls:</b> WASD to Move | Space to Jump / Fly Helicopter | Left Click to Attack / Shoot Bow<br>
+        <b>Interact / Shop / Gas Station / Chest:</b> E | <b>Inventory:</b> I / TAB | <b>Use Consumable:</b> Right Click / F | <b>Drop:</b> Q | <b>Place Base (needs a Base Kit):</b> B | <b>Unbuild Base:</b> G | <b>Pause:</b> ESC
+      </div>
+    </div>
+  </div>
+
+  <div id="multiplayer-menu" aria-hidden="true">
+    <div class="multiplayer-card">
+      <h2>🌐 Multiplayer Settings</h2>
+      <p class="multiplayer-status">Press F10 any time to open or close this menu. Hosting controls whether this game creates a PeerJS host and accepts incoming players.</p>
+
+      <div class="hosting-row">
+        <div class="hosting-label">
+          <strong>Hosting</strong>
+          <span id="hosting-state-text">ON</span>
+        </div>
+        <button id="hosting-toggle" type="button" aria-label="Toggle multiplayer hosting"></button>
+      </div>
+
+      <div class="peer-details">
+        <div><b>Peer ID:</b> <span id="menu-peer-id">Starting...</span></div>
+        <div><b>Connected players:</b> <span id="menu-peer-count">0</span></div>
+      </div>
+
+      <div class="join-peer-row">
+        <input type="text" id="remote-peer-id" placeholder="Enter Peer ID to join" autocomplete="off" />
+        <button id="connectPeerBtn" class="action-btn join-peer-btn">🌐 Join Player</button>
+      </div>
+
+      <div id="peer-status-message" class="peer-status-message">Ready for multiplayer.</div>
+
+      <div class="multiplayer-actions">
+        <button id="close-multiplayer-menu" class="action-btn">Close (F10)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="cheat-menu" aria-hidden="true">
+    <div class="terminal-card">
+      <div class="terminal-titlebar">
+        <span><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></span>
+        <strong>VAV TERMINAL</strong>
+        <span class="terminal-shortcut">F7</span>
+      </div>
+      <div id="terminal-output" class="terminal-output" aria-live="polite"></div>
+      <form id="terminal-form" class="terminal-form" autocomplete="off">
+        <span class="terminal-prompt">vav@game:~$</span>
+        <input id="terminal-input" class="terminal-input" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Terminal command" placeholder="type a command...">
+      </form>
+    </div>
+  </div>
+
+  <div id="worlds-modal" aria-hidden="true">
+    <div class="worlds-card">
+      <h2>🌍 Select World</h2>
+      <p class="multiplayer-status">Each world keeps its own map, level, inventory, coins, and bases separate — just like Minecraft's world list. Pick a world to load it and start playing, or create a new one.</p>
+
+      <div class="create-world-row">
+        <input type="text" id="newWorldName" placeholder="New world name..." autocomplete="off" maxlength="40" />
+        <button id="createWorldBtn" class="action-btn join-peer-btn">➕ Create World</button>
+      </div>
+
+      <div id="worlds-list" class="worlds-list"></div>
+
+      <div class="multiplayer-actions">
+        <button id="close-worlds-menu" class="action-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="crosshair">+</div>
+  
+  <div id="top-hud">
+    <div id="level-hud" class="hud-box">⭐ Level <span id="level-count">1</span> (<span id="xp-count">0</span>/<span id="xp-next">100</span> XP)</div>
+    <div id="health-hud" class="hud-box">❤️ Health: <span id="health-count">100</span> / 100</div>
+    <div id="fuel-hud" class="hud-box">⛽ Fuel: <span id="fuel-count">200</span> / 200</div>
+    <div id="arrow-hud" class="hud-box">🏹 Arrows: <span id="arrow-count">20</span></div>
+    <div id="airspeed-hud" class="hud-box">🧭 Airspeed: <span id="airspeed-count">0</span></div>
+    <div id="coin-hud" class="hud-box">🪙 Coins: <span id="coin-count">10</span></div>
+
+    <div id="inv-hud-btn" class="hud-box">🎒 Inventory [I]</div>
+  </div>
+
+  <div id="interaction-prompt">
+    <div><span id="prompt-action-text">Press <b>E</b> to interact with</span> <span id="prompt-item-name" style="color: #28a745; font-weight: bold;">Item</span></div>
+    <div id="mining-progress-track"><div id="mining-progress-bar"></div></div>
+  </div>
+
+  <div id="inventory-bar">
+    <div class="slot active" data-slot="0"><span class="slot-num">1</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="1"><span class="slot-num">2</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="2"><span class="slot-num">3</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="3"><span class="slot-num">4</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="4"><span class="slot-num">5</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="5"><span class="slot-num">6</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="6"><span class="slot-num">7</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="7"><span class="slot-num">8</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+    <div class="slot" data-slot="8"><span class="slot-num">9</span><span class="slot-icon"></span><span class="slot-name">Empty</span></div>
+  </div>
+
+  <div id="shop-modal">
+    <div class="shop-header">🏪 Item Shop</div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🏹</span> <b>Hunting Bow</b></div>
+      <button class="buy-btn" data-item="bow" data-price="18">18 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>📦</span> <b>Arrow Bundle (+15 Arrows)</b></div>
+      <button class="buy-btn" data-item="arrows" data-price="5">5 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🚁</span> <b>Personal Helicopter</b></div>
+      <button class="buy-btn" data-item="helicopter" data-price="35" data-vavite="5">35 🪙 + 5 🔮 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🏎️</span> <b>Sports Car (3x Speed)</b></div>
+      <button class="buy-btn" data-item="car" data-price="25" data-vavite="3">25 🪙 + 3 🔮 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>⛽</span> <b>Fuel Tank (+100 Fuel)</b></div>
+      <button class="buy-btn" data-item="fuel_tank" data-price="10">10 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>⚔️</span> <b>Iron Sword</b></div>
+      <button class="buy-btn" data-item="iron_sword" data-price="15">15 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🗡️</span> <b>Stone Sword</b></div>
+      <button class="buy-btn" data-item="stone_sword" data-price="8">8 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>💎</span> <b>Diamonds</b></div>
+      <button class="buy-btn" data-item="diamonds" data-price="20">20 🪙 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🧪</span> <b>Health Potion</b></div>
+      <button class="buy-btn" data-item="potion" data-price="5">5 🪙 Buy</button>
+    </div>
+
+    <button class="close-shop-btn" id="closeShopBtn">Close Shop</button>
+  </div>
+
+  <div id="shop2-modal">
+    <div class="shop-header">🛫 Vehicle &amp; Base Depot</div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>✈️</span> <b>Propeller Plane (4.5x Speed)</b></div>
+      <button class="buy-btn" data-item="plane" data-price="60" data-vavite="8">60 🪙 + 8 🔮 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🛩️</span> <b>Jet Fighter (6x Speed)</b></div>
+      <button class="buy-btn" data-item="jet" data-price="100" data-vavite="15">100 🪙 + 15 🔮 Buy</button>
+    </div>
+
+    <div class="shop-item">
+      <div class="shop-item-info"><span>🏠</span> <b>Base Kit (Storage Chest)</b></div>
+      <button class="buy-btn" data-item="base_kit" data-price="30">30 🪙 Buy</button>
+    </div>
+
+    <button class="close-shop-btn" id="closeShop2Btn">Close Shop</button>
+  </div>
+
+  <div id="inventory-modal">
+    <div class="shop-header">🎒 Player Inventory</div>
+
+    <div class="inv-section-title">📦 Storage (Inner Slots)</div>
+    <div id="inner-grid" class="inv-grid"></div>
+
+    <div class="inv-section-title">⚡ Active Hotbar</div>
+    <div id="hotbar-grid" class="inv-grid"></div>
+
+    <div style="font-size: 11px; color: #888; text-align: center; margin-top: 4px;">Click an item slot to select and move/swap items.</div>
+
+    <button class="close-shop-btn" id="closeInvBtn">Close Inventory</button>
+  </div>
+
+  <div id="chest-modal">
+    <div class="shop-header">📦 Base Storage</div>
+
+    <div class="inv-section-title">🧳 Chest Storage</div>
+    <div id="chest-grid" class="inv-grid"></div>
+
+    <div class="inv-section-title">🎒 Your Inventory</div>
+    <div id="chest-player-grid" class="inv-grid"></div>
+
+    <div style="font-size: 11px; color: #888; text-align: center; margin-top: 4px;">Click an item to select it, then click another slot to move or swap it.</div>
+
+    <button class="close-shop-btn" id="closeChestBtn">Close Chest</button>
+    </div>
+  <script type="module" src="main.js"></script>
+    </body>
+</html>
