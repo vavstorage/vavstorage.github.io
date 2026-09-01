@@ -528,10 +528,9 @@
       inset: 0;
       background: rgba(0, 5, 0, 0.78);
       display: none;
-      align-items: center;
-      justify-content: center;
+      align-items: stretch;
+      justify-content: stretch;
       z-index: 55;
-      backdrop-filter: blur(5px);
       font-family: 'Consolas', 'Courier New', monospace;
     }
 
@@ -540,16 +539,16 @@
     }
 
     .terminal-card {
-      width: min(820px, 92vw);
-      height: min(560px, 82vh);
+      width: 100vw;
+      height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
       background: #070b08;
       color: #8dffb6;
-      border: 1px solid #2fbf71;
-      border-radius: 10px;
-      box-shadow: 0 0 0 1px rgba(47,191,113,.12), 0 22px 70px rgba(0,0,0,.8), 0 0 45px rgba(47,191,113,.12);
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
       font-family: Consolas, "Courier New", monospace;
     }
 
@@ -622,7 +621,6 @@
     .terminal-input::placeholder { color: #31563e; }
 
     @media (max-width: 600px) {
-      .terminal-card { width: 96vw; height: 78vh; }
       .terminal-output { font-size: 12px; padding: 12px; }
       .terminal-form { padding: 10px 12px 12px; }
       .terminal-prompt { font-size: 12px; }
@@ -1088,7 +1086,7 @@
     </div>
   </div>
 
-  <div id="worlds-modal"  <div id="worlds-modal" aria-hidden="true">
+  <div id="worlds-modal" aria-hidden="true">
     <div class="worlds-card">
       <h2>🌍 Select World</h2>
       <p class="multiplayer-status">Each world keeps its own map, level, inventory, coins, and bases separate — just like Minecraft's world list. Pick a world to load it and start playing, or create a new one.</p>
@@ -1366,6 +1364,9 @@
     let cheatMenuWasLocked = false;
     let cheatGodMode = false;
     let cheatFlyMode = false;
+    let cheatNoclip = false;
+    let cheatWireframe = false;
+    let cheatSpawningPaused = false;
     const cheatSpeedLevels = [1, 2, 3];
     let cheatSpeedIndex = 0;
     let isShiftPressed = false;
@@ -2354,6 +2355,7 @@
     }
 
     function spawnEnemyHelicopter() {
+      if (cheatSpawningPaused) return;
       if (playerLevel < 5) return;
       if (enemyHelicopters.length >= maxHelicoptersInSky) return;
 
@@ -2443,6 +2445,7 @@
     }
 
     function spawnEnemy() {
+      if (cheatSpawningPaused) return;
       const hasSpawners = spawnerMeshes.length > 0;
       if ((!hasSpawners && !currentLoadedFileName.toLowerCase().includes('island')) || enemies.length >= maxEnemiesOnIsland) return;
 
@@ -3895,6 +3898,24 @@
       terminalPrint('  meshes                      List named meshes/objects');
       terminalPrint('  killall                      Remove enemies');
       terminalPrint('  give <item> [quantity]       Give an item');
+      terminalPrint('  items                        List all giveable item IDs');
+      terminalPrint('  clearinv                     Empty your entire inventory');
+      terminalPrint('  noclip [on|off|toggle]        Toggle collision (pair with fly)');
+      terminalPrint('  wireframe [on|off|toggle]     Toggle wireframe on the map');
+      terminalPrint('  fov <degrees>                 Set camera field of view');
+      terminalPrint('  sethealth <amount>            Set health directly');
+      terminalPrint('  setfuel <amount>              Set fuel directly');
+      terminalPrint('  setarrows <amount>            Set arrow count directly');
+      terminalPrint('  setlevel <amount>             Set player level directly');
+      terminalPrint('  damage <amount>               Deal damage to yourself');
+      terminalPrint('  kill                          Instantly kill yourself');
+      terminalPrint('  spawn <enemy|heli>            Force-spawn an enemy or helicopter');
+      terminalPrint('  noenemies [on|off|toggle]      Pause/resume enemy spawning');
+      terminalPrint('  maps                          List known map files');
+      terminalPrint('  map <name>                    Load a map by filename');
+      terminalPrint('  worlds                        List saved worlds');
+      terminalPrint('  world <name>                  Play a saved world by name');
+      terminalPrint('  save                          Quick save the active world');
       terminalPrint('  history                      Show recent commands');
       terminalPrint('  exit                         Close terminal');
       terminalPrint('');
@@ -3903,7 +3924,8 @@
 
     function terminalStatus() {
       terminalPrint(`Level ${playerLevel} | XP ${playerXP}/${xpToNextLevel} | Coins ${playerCoins} | Health ${playerHealth}/${maxPlayerHealth} | Fuel ${playerFuel}/${maxPlayerFuel} | Arrows ${playerArrows}`, 'info');
-      terminalPrint(`God ${cheatGodMode ? 'ON' : 'OFF'} | Fly ${cheatFlyMode ? 'ON' : 'OFF'} | Speed x${cheatSpeedLevels[cheatSpeedIndex]}`, 'info');
+      terminalPrint(`God ${cheatGodMode ? 'ON' : 'OFF'} | Fly ${cheatFlyMode ? 'ON' : 'OFF'} | Noclip ${cheatNoclip ? 'ON' : 'OFF'} | Speed x${cheatSpeedLevels[cheatSpeedIndex]}`, 'info');
+      terminalPrint(`Wireframe ${cheatWireframe ? 'ON' : 'OFF'} | Enemy Spawning ${cheatSpawningPaused ? 'PAUSED' : 'ACTIVE'} | Map: ${currentLoadedFileName}`, 'info');
     }
 
     function terminalSetToggle(current, arg, setter, label) {
@@ -4032,6 +4054,121 @@
       return !!added;
     }
 
+    function cheatToggleNoclip(force) {
+      cheatNoclip = typeof force === 'boolean' ? force : !cheatNoclip;
+      if (cheatNoclip) velocity.set(0, 0, 0);
+      showToast(cheatNoclip ? '👻 Noclip enabled — pair with fly to pass through walls' : '👻 Noclip disabled');
+    }
+
+    function cheatToggleWireframe(force) {
+      cheatWireframe = typeof force === 'boolean' ? force : !cheatWireframe;
+      if (loadedModel) {
+        loadedModel.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((mat) => { if (mat) mat.wireframe = cheatWireframe; });
+          }
+        });
+      }
+      showToast(cheatWireframe ? '🔲 Wireframe enabled' : '🔲 Wireframe disabled');
+    }
+
+    function cheatSetFov(deg) {
+      camera.fov = Math.max(20, Math.min(150, deg));
+      camera.updateProjectionMatrix();
+      showToast(`🎥 FOV set to ${camera.fov}`);
+    }
+
+    function cheatSetHealth(amount) {
+      playerHealth = Math.max(0, Math.min(maxPlayerHealth, amount));
+      updateHealthHUD();
+      showToast(`❤️ Health set to ${Math.round(playerHealth)}`);
+      if (playerHealth <= 0) { alert('You died! Respawning...'); respawnPlayer(); }
+    }
+
+    function cheatSetFuel(amount) {
+      playerFuel = Math.max(0, Math.min(maxPlayerFuel, amount));
+      updateFuelHUD();
+      showToast(`⛽ Fuel set to ${Math.round(playerFuel)}`);
+    }
+
+    function cheatSetArrows(amount) {
+      playerArrows = Math.max(0, Math.floor(amount));
+      updateArrowHUD();
+      updateHeldWeaponModel();
+      showToast(`🏹 Arrows set to ${playerArrows}`);
+    }
+
+    function cheatSetLevel(amount) {
+      playerLevel = Math.max(1, Math.floor(amount));
+      updateLevelHUD();
+      showToast(`⭐ Level set to ${playerLevel}`);
+    }
+
+    function cheatDamageSelf(amount) {
+      takeDamage(Math.max(0, amount));
+      showToast(`💥 Took ${amount} damage`);
+    }
+
+    function cheatKillSelf() {
+      playerHealth = 0;
+      updateHealthHUD();
+      triggerDamageFlash();
+      alert('You died! Respawning...');
+      respawnPlayer();
+    }
+
+    function cheatForceSpawn(kind) {
+      if (kind === 'heli' || kind === 'helicopter') {
+        const before = enemyHelicopters.length;
+        const savedLevel = playerLevel;
+        if (playerLevel < 5) playerLevel = 5; // temporarily bypass the level gate so testing works pre-level-5
+        spawnEnemyHelicopter();
+        playerLevel = savedLevel;
+        return enemyHelicopters.length > before;
+      }
+      const before = enemies.length;
+      spawnEnemy();
+      return enemies.length > before;
+    }
+
+    function cheatToggleSpawning(force) {
+      cheatSpawningPaused = typeof force === 'boolean' ? force : !cheatSpawningPaused;
+      showToast(cheatSpawningPaused ? '⏸️ Enemy spawning paused' : '▶️ Enemy spawning resumed');
+    }
+
+    function cheatClearInventory() {
+      inventory.fill(null);
+      selectedSwapSourceIndex = null;
+      updateInventoryUI();
+      showToast('🎒 Inventory cleared');
+    }
+
+    function terminalListItems() {
+      terminalPrint('Giveable item IDs:', 'success');
+      Object.keys(itemCatalog).forEach((key) => {
+        terminalPrint(`  ${key.padEnd(14, ' ')} ${itemCatalog[key].icon} ${itemCatalog[key].name}`);
+      });
+    }
+
+    function terminalListMaps() {
+      terminalPrint('Known maps: model.glb, island.glb', 'success');
+      terminalPrint(`Currently loaded: ${currentLoadedFileName}`, 'info');
+      terminalPrint('Use "map <filename>" to load any other .glb hosted at vavstorage.github.io.', 'dim');
+    }
+
+    function terminalListWorlds() {
+      if (!worlds.length) {
+        terminalPrint('No saved worlds yet. Use the 🌍 Worlds button or "world <name>" to create one.', 'dim');
+        return;
+      }
+      terminalPrint(`Saved worlds: ${worlds.length}`, 'success');
+      worlds.forEach((w) => {
+        const active = w.id === activeWorldId ? ' (active)' : '';
+        terminalPrint(`  ${w.name}${active} — Lvl ${(w.data && w.data.level) || 1} — Map: ${w.map || 'unknown'}`);
+      });
+    }
+
     function terminalRunCommand(rawCommand) {
       const raw = rawCommand.trim();
       if (!raw) return;
@@ -4127,6 +4264,113 @@
           terminalPrint(gave ? `Gave ${amount} ${itemCatalog[key].name}.` : 'Inventory is full.', gave ? 'success' : 'error');
           break;
         }
+        case 'items':
+          terminalListItems();
+          break;
+        case 'clearinv': case 'clearinventory':
+          cheatClearInventory();
+          terminalPrint('Inventory cleared.', 'success');
+          break;
+        case 'noclip': {
+          const mode = (args[0] || 'toggle').toLowerCase();
+          cheatToggleNoclip(mode === 'on' ? true : mode === 'off' ? false : undefined);
+          terminalPrint(`Noclip ${cheatNoclip ? 'enabled' : 'disabled'}.`, 'success');
+          break;
+        }
+        case 'wireframe': {
+          const mode = (args[0] || 'toggle').toLowerCase();
+          cheatToggleWireframe(mode === 'on' ? true : mode === 'off' ? false : undefined);
+          terminalPrint(`Wireframe ${cheatWireframe ? 'enabled' : 'disabled'}.`, 'success');
+          break;
+        }
+        case 'fov': {
+          const deg = Number(args[0]);
+          if (!Number.isFinite(deg)) { terminalPrint('Usage: fov <degrees>', 'error'); break; }
+          cheatSetFov(deg);
+          terminalPrint(`FOV set to ${camera.fov}.`, 'success');
+          break;
+        }
+        case 'sethealth': case 'hp': {
+          const amount = Number(args[0]);
+          if (!Number.isFinite(amount)) { terminalPrint('Usage: sethealth <amount>', 'error'); break; }
+          cheatSetHealth(amount);
+          terminalPrint(`Health set to ${Math.round(playerHealth)}.`, 'success');
+          break;
+        }
+        case 'setfuel': {
+          const amount = Number(args[0]);
+          if (!Number.isFinite(amount)) { terminalPrint('Usage: setfuel <amount>', 'error'); break; }
+          cheatSetFuel(amount);
+          terminalPrint(`Fuel set to ${Math.round(playerFuel)}.`, 'success');
+          break;
+        }
+        case 'setarrows': {
+          const amount = Number(args[0]);
+          if (!Number.isFinite(amount)) { terminalPrint('Usage: setarrows <amount>', 'error'); break; }
+          cheatSetArrows(amount);
+          terminalPrint(`Arrows set to ${playerArrows}.`, 'success');
+          break;
+        }
+        case 'setlevel': {
+          const amount = Number(args[0]);
+          if (!Number.isFinite(amount)) { terminalPrint('Usage: setlevel <amount>', 'error'); break; }
+          cheatSetLevel(amount);
+          terminalPrint(`Level set to ${playerLevel}.`, 'success');
+          break;
+        }
+        case 'damage': {
+          const amount = Number(args[0] ?? 25);
+          if (!Number.isFinite(amount)) { terminalPrint('Usage: damage <amount>', 'error'); break; }
+          cheatDamageSelf(Math.max(0, amount));
+          terminalPrint(`Dealt ${Math.max(0, amount)} damage to self.`, 'success');
+          break;
+        }
+        case 'kill': case 'suicide':
+          cheatKillSelf();
+          terminalPrint('Killed self.', 'success');
+          break;
+        case 'spawn': {
+          const kind = (args[0] || '').toLowerCase();
+          if (!['enemy', 'heli', 'helicopter'].includes(kind)) { terminalPrint('Usage: spawn enemy|heli', 'error'); break; }
+          const spawned = cheatForceSpawn(kind);
+          terminalPrint(spawned ? `Spawned a ${kind}.` : 'Could not spawn — the max count for that type is already on the field.', spawned ? 'success' : 'error');
+          break;
+        }
+        case 'noenemies': case 'pausespawns': {
+          const mode = (args[0] || 'toggle').toLowerCase();
+          cheatToggleSpawning(mode === 'on' ? true : mode === 'off' ? false : undefined);
+          terminalPrint(`Enemy spawning ${cheatSpawningPaused ? 'paused' : 'resumed'}.`, 'success');
+          break;
+        }
+        case 'maps':
+          terminalListMaps();
+          break;
+        case 'map': case 'loadmap': {
+          const name = args.join(' ').trim();
+          if (!name) { terminalPrint('Usage: map <filename>', 'error'); break; }
+          const fileName = name.toLowerCase().endsWith('.glb') || name.toLowerCase().endsWith('.gltf') ? name : `${name}.glb`;
+          terminalPrint(`Loading ${fileName}...`, 'info');
+          loadModelFromURL(baseURL + fileName, fileName, (success) => {
+            terminalPrint(success ? `Loaded ${fileName}.` : `Failed to load ${fileName}.`, success ? 'success' : 'error');
+          });
+          break;
+        }
+        case 'worlds':
+          terminalListWorlds();
+          break;
+        case 'world': case 'playworld': {
+          const name = args.join(' ').trim();
+          if (!name) { terminalPrint('Usage: world <name>', 'error'); break; }
+          const match = worlds.find(w => w.name.toLowerCase() === name.toLowerCase() || w.id === name);
+          if (!match) { terminalPrint(`No world named "${name}" found. Use "worlds" to list them.`, 'error'); break; }
+          playWorld(match.id);
+          terminalPrint(`Playing "${match.name}".`, 'success');
+          break;
+        }
+        case 'save': case 'quicksave':
+          quickSaveActiveWorld();
+          terminalPrint('Save requested.', 'success');
+          break;
         case 'history':
           if (!terminalHistory.length) terminalPrint('No command history.');
           else terminalHistory.forEach((h, i) => terminalPrint(`${String(i + 1).padStart(2, ' ')}  ${h}`));
@@ -4818,6 +5062,13 @@
 
         
         // --- UPDATED SOLID COLLISION CODE ---
+if (cheatNoclip) {
+  // Noclip: move freely with no wall/ceiling/ground checks at all.
+  controls.moveRight(-velocity.x * delta);
+  controls.moveForward(-velocity.z * delta);
+  controls.getObject().position.y += velocity.y * delta;
+  isGrounded = false;
+} else {
 const targets = loadedModel ? [loadedModel, ...placedBases] : [...placedBases];
 const oldPos = controls.getObject().position.clone();
 
@@ -4904,6 +5155,7 @@ if (targets.length > 0) {
             isGrounded = true;
           }
         }
+}
 
         if (controls.getObject().position.y < -30) respawnPlayer();
 
