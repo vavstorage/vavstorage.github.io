@@ -1704,51 +1704,6 @@
       (err) => console.warn('Could not load base.glb', err)
     );
 
-    // --- SHOP GLB TEMPLATES (used for the fallback stands when the loaded map
-    // has no "shop"/"shop2"-named mesh of its own) ---
-    let shopModelTemplate = null;
-    let shopModelGroundOffset = 0;
-    let shop2ModelTemplate = null;
-    let shop2ModelGroundOffset = 0;
-
-    loader.load(
-      baseURL + 'shop.glb',
-      (gltf) => {
-        const model = gltf.scene;
-        const box = new THREE.Box3().setFromObject(model);
-        shopModelGroundOffset = -box.min.y;
-        shopModelTemplate = model;
-
-        // A placeholder stand may already be standing in for this model if the
-        // map finished loading before shop.glb did - swap it for the real mesh.
-        if (fallbackShop) {
-          const pos = fallbackShop.position.clone();
-          removeFallbackShop();
-          fallbackShop = createFallbackShopStand(pos);
-        }
-      },
-      undefined,
-      (err) => console.warn('Could not load shop.glb', err)
-    );
-
-    loader.load(
-      baseURL + 'shop2.glb',
-      (gltf) => {
-        const model = gltf.scene;
-        const box = new THREE.Box3().setFromObject(model);
-        shop2ModelGroundOffset = -box.min.y;
-        shop2ModelTemplate = model;
-
-        if (fallbackShop2) {
-          const pos = fallbackShop2.position.clone();
-          removeFallbackShop2();
-          fallbackShop2 = createFallbackShop2Stand(pos);
-        }
-      },
-      undefined,
-      (err) => console.warn('Could not load shop2.glb', err)
-    );
-
     // --- HEALTH, FUEL & ARROW HUD LOGIC ---
     function updateHealthHUD() {
       healthCountDisplay.textContent = Math.max(0, Math.round(playerHealth));
@@ -2546,8 +2501,6 @@
     const interactableObjects = [];
     const placedBases = [];
     let hoveredObject = null;
-    let fallbackShop = null;
-    let fallbackShop2 = null;
     let fallbackVavite = null;
     let fallbackIronOre = null;
 
@@ -2719,86 +2672,6 @@
     spawnCoinAt(new THREE.Vector3(0, 2.5, -3.5));
     setInterval(spawnRandomCoin, 15000);
 
-    // Simple placeholder counter+sign, shown only until the matching shop.glb /
-    // shop2.glb has finished downloading (or if it fails to load at all).
-    function buildPlaceholderShopStand(signColor) {
-      const group = new THREE.Group();
-      const counter = new THREE.Mesh(
-        new THREE.BoxGeometry(2, 0.8, 1),
-        new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 })
-      );
-      counter.position.y = 0.4;
-      group.add(counter);
-
-      const sign = new THREE.Mesh(
-        new THREE.BoxGeometry(1.6, 0.5, 0.1),
-        new THREE.MeshStandardMaterial({ color: signColor, metalness: 0.5 })
-      );
-      sign.position.set(0, 1.5, 0);
-      group.add(sign);
-
-      return group;
-    }
-
-    function createFallbackShopStand(position) {
-      const shopGroup = shopModelTemplate ? shopModelTemplate.clone(true) : buildPlaceholderShopStand(0xffd700);
-      shopGroup.position.copy(position);
-      if (shopModelTemplate) shopGroup.position.y += shopModelGroundOffset; // sit flush on the surface regardless of the model's pivot
-
-      shopGroup.traverse((child) => {
-        child.userData.isShop = true;
-        child.userData.name = 'Item Shop';
-      });
-
-      scene.add(shopGroup);
-      interactableObjects.push(shopGroup);
-      return shopGroup;
-    }
-
-    function removeFallbackShop() {
-      if (fallbackShop) {
-        scene.remove(fallbackShop);
-        fallbackShop.traverse((child) => {
-          const idx = interactableObjects.indexOf(child);
-          if (idx > -1) interactableObjects.splice(idx, 1);
-        });
-        const idx = interactableObjects.indexOf(fallbackShop);
-        if (idx > -1) interactableObjects.splice(idx, 1);
-        fallbackShop = null;
-      }
-    }
-
-    // Shop2 sells vehicles (planes/jets) and base kits - separate mesh (shop2.glb)
-    // so it reads as a distinct stand from the main item shop.
-    function createFallbackShop2Stand(position) {
-      const shopGroup = shop2ModelTemplate ? shop2ModelTemplate.clone(true) : buildPlaceholderShopStand(0x00e5ff);
-      shopGroup.position.copy(position);
-      if (shop2ModelTemplate) shopGroup.position.y += shop2ModelGroundOffset;
-
-      shopGroup.traverse((child) => {
-        child.userData.isShop2 = true;
-        child.userData.name = 'Vehicle & Base Depot';
-      });
-
-      scene.add(shopGroup);
-      interactableObjects.push(shopGroup);
-      return shopGroup;
-    }
-
-    function removeFallbackShop2() {
-      if (fallbackShop2) {
-        scene.remove(fallbackShop2);
-        fallbackShop2.traverse((child) => {
-          const idx = interactableObjects.indexOf(child);
-          if (idx > -1) interactableObjects.splice(idx, 1);
-        });
-        const idx = interactableObjects.indexOf(fallbackShop2);
-        if (idx > -1) interactableObjects.splice(idx, 1);
-        fallbackShop2 = null;
-      }
-    }
-
-
     // A glowing crystal deposit used when the loaded map has no "vavite"-named
     // object of its own, so mining vavite always works out of the box.
     function createFallbackVaviteDeposit(position) {
@@ -2885,9 +2758,6 @@
         }
       }
 
-      removeFallbackShop();
-      removeFallbackShop2();
-
       let foundShop = false;
       let foundShop2 = false;
       // Checked first/specifically so a mesh literally named "shop2" (or a close
@@ -2925,13 +2795,6 @@
           });
         }
       });
-
-      if (!foundShop) {
-        fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
-      }
-      if (!foundShop2) {
-        fallbackShop2 = createFallbackShop2Stand(new THREE.Vector3(-3, 0, -3));
-      }
     }
 
     // --- GAS STATION DETECTION ---
@@ -4794,8 +4657,6 @@
           console.error('Error loading model:', error);
           loadingStatus.textContent = `⚠️ Failed to load: ${displayName}`;
           loadingStatus.style.color = '#ff4d4d';
-          if (!fallbackShop) fallbackShop = createFallbackShopStand(new THREE.Vector3(3, 0, -3));
-          if (!fallbackShop2) fallbackShop2 = createFallbackShop2Stand(new THREE.Vector3(-3, 0, -3));
           if (onComplete) onComplete(false);
         }
       );
