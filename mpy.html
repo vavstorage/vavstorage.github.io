@@ -4640,8 +4640,49 @@
     let isTeleporting = false;
     let portalObjects = [];
 
+    // Portal destinations are loaded from a separate JSON file hosted next to
+    // your other assets: https://vavstorage.github.io/portals.json
+    //
+    // That file should look like this — keys are the portal object's exact
+    // name in the GLB/Blender scene (case-insensitive), values are the .glb
+    // file to load when the player walks through that portal:
+    // {
+    //   "portal island": "island.glb",
+    //   "portal castle": "castle.glb"
+    // }
+    //
+    // If portals.json doesn't exist yet (e.g. you haven't created it), this
+    // just falls back to the old name-based detection below, so nothing breaks.
+    let portalDestinations = {};
+
+    function loadPortalDestinations() {
+      return fetch(baseURL + 'portals.json')
+        .then((res) => {
+          if (!res.ok) throw new Error('portals.json returned ' + res.status);
+          return res.json();
+        })
+        .then((data) => {
+          portalDestinations = {};
+          Object.keys(data || {}).forEach((k) => {
+            portalDestinations[k.toLowerCase().trim()] = data[k];
+          });
+          console.log('Loaded portal destinations from portals.json:', portalDestinations);
+        })
+        .catch((err) => {
+          console.warn('Could not load portals.json (falling back to name-based portal detection):', err);
+          portalDestinations = {};
+        });
+    }
+
     function extractTargetFileName(objectName) {
-      let name = objectName.toLowerCase().trim().replace(/^portal[_-]?/i, '').replace(/[_-]?portal$/i, '').trim();
+      const key = objectName.toLowerCase().trim();
+
+      // 1. Look up an exact match in portals.json.
+      if (portalDestinations[key]) return portalDestinations[key];
+
+      // 2. Fall back to deriving it from the name itself, e.g.
+      //    "Portal_Island" or "Island_Portal" -> "island.glb".
+      let name = key.replace(/^portal[_-]?/i, '').replace(/[_-]?portal$/i, '').trim();
       if (name && !name.endsWith('.glb') && !name.endsWith('.gltf')) name += '.glb';
       if (!name || name === '.glb') return (currentLoadedFileName === 'model.glb') ? 'island.glb' : 'model.glb';
       return name;
@@ -4650,7 +4691,15 @@
     function detectPortalsInModel(gltfScene) {
       portalObjects = [];
       gltfScene.traverse((child) => {
-        if (child.name && child.name.toLowerCase().includes('portal')) {
+        if (!child.name) return;
+        const key = child.name.toLowerCase().trim();
+        // An object counts as a portal if its name contains "portal" (the
+        // old convention), OR if its exact name is a key in portals.json —
+        // this lets you name a portal object anything you want (e.g. "opy")
+        // as long as portals.json has a matching entry for it.
+        const isNamedPortal = key.includes('portal');
+        const isKnownDestination = Object.prototype.hasOwnProperty.call(portalDestinations, key);
+        if (isNamedPortal || isKnownDestination) {
           child.userData.targetFile = extractTargetFileName(child.name);
           portalObjects.push(child);
         }
@@ -4666,9 +4715,23 @@
         new THREE.Vector3(playerPos.x + playerRadius, playerPos.y + playerHeight, playerPos.z + playerRadius)
       );
       const portalBox = new THREE.Box3();
+      const PORTAL_TRIGGER_RADIUS = 1.5; // fallback trigger size for portal objects with no mesh (empty markers)
 
       for (const portal of portalObjects) {
         portalBox.setFromObject(portal);
+
+        // Objects with no mesh geometry (e.g. a plain Empty used as a portal
+        // marker in Blender) produce an empty box that never intersects
+        // anything. Fall back to a fixed-radius zone around its position.
+        if (portalBox.isEmpty()) {
+          const center = new THREE.Vector3();
+          portal.getWorldPosition(center);
+          portalBox.setFromCenterAndSize(
+            center,
+            new THREE.Vector3(PORTAL_TRIGGER_RADIUS * 2, PORTAL_TRIGGER_RADIUS * 2, PORTAL_TRIGGER_RADIUS * 2)
+          );
+        }
+
         if (portalBox.intersectsBox(playerBox)) {
           triggerPortalTeleport(portal.userData.targetFile || 'island.glb');
           break;
@@ -4738,7 +4801,9 @@
       );
     }
 
-    loadModelFromURL(baseURL + 'model.glb', 'model.glb');
+    loadPortalDestinations().finally(() => {
+      loadModelFromURL(baseURL + 'model.glb', 'model.glb');
+    });
 
     // Load the worlds list now that currentLoadedFileName exists (used as a
     // fallback map name when migrating an old single-slot save).
