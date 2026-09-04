@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>loading..</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
       margin: 0;
@@ -28,12 +31,15 @@
       z-index: 15;
     }
 
-    /* Fullscreen menu overlay */
+    /* Fullscreen menu overlay — green forest panorama */
     #blocker {
       position: absolute;
       width: 100%;
       height: 100%;
-      background-color: rgba(0, 0, 0, 0.85);
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 8%, rgba(200,255,200,0.55), rgba(133,214,133,0) 42%),
+        linear-gradient(160deg, #8fdb8a 0%, #6bc96a 35%, #57bb57 60%, #3e9e46 100%);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -41,56 +47,126 @@
       color: #ffffff;
       text-align: center;
       z-index: 20;
+      font-family: 'Fredoka', 'Arial Rounded MT Bold', Arial, sans-serif;
     }
 
+    /* Soft blurred panorama blobs for depth, like sunlit forest bokeh */
+    #blocker::before,
+    #blocker::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(40px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #blocker::before {
+      width: 340px;
+      height: 340px;
+      left: -60px;
+      bottom: 60px;
+      background: rgba(255,255,255,0.10);
+    }
+
+    #blocker::after {
+      width: 260px;
+      height: 260px;
+      right: 4%;
+      bottom: 12%;
+      background: rgba(255,255,255,0.08);
+    }
+
+    .menu-blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(35px);
+      pointer-events: none;
+      z-index: 0;
+      background: rgba(255,255,255,0.07);
+    }
+
+    .menu-blob.blob-a { width: 200px; height: 200px; top: 6%; right: 12%; }
+    .menu-blob.blob-b { width: 180px; height: 180px; bottom: -40px; left: 20%; background: rgba(255,255,255,0.06); }
+
     .card {
-      background: #222;
-      padding: 30px 40px;
+      position: relative;
+      z-index: 1;
+      background: transparent;
+      padding: 20px 30px;
       border-radius: 12px;
-      border: 1px solid #444;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: none;
+      box-shadow: none;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 18px;
       align-items: center;
       max-width: 90vw;
       box-sizing: border-box;
     }
 
     h1 {
-      margin: 0 0 5px 0;
-      font-size: 28px;
+      margin: 0;
+      font-size: 46px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+      -webkit-text-stroke: 1px rgba(38, 100, 40, 0.25);
+      text-shadow:
+        0 4px 0 rgba(30, 90, 35, 0.55),
+        0 10px 18px rgba(0, 40, 0, 0.35);
+    }
+
+    h1 .word {
+      display: inline-block;
+    }
+
+    h1 .word:nth-child(odd) {
+      transform: rotate(-3deg);
+    }
+
+    h1 .word:nth-child(even) {
+      transform: rotate(2deg);
     }
 
     #loading-status {
-      font-size: 14px;
-      color: #ffd700;
-      font-weight: bold;
+      font-size: 15px;
+      color: rgba(255,255,255,0.9);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-top: -8px;
     }
 
     /* Buttons Container */
     .btn-row {
       display: flex;
-      gap: 10px;
+      gap: 14px;
       flex-wrap: wrap;
       justify-content: center;
     }
 
     .file-upload-btn, .action-btn {
-      background-color: #333;
-      color: #fff;
-      padding: 10px 16px;
-      border-radius: 6px;
-      border: 1px solid #555;
+      background-color: #ffffff;
+      color: #2f8f34;
+      padding: 16px 22px;
+      border-radius: 18px;
+      border: none;
       cursor: pointer;
-      font-size: 14px;
-      font-weight: bold;
-      transition: background 0.2s, transform 0.1s;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 600;
+      box-shadow: 0 5px 0 rgba(30, 90, 35, 0.35), 0 8px 14px rgba(0, 30, 0, 0.2);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
     }
 
     .file-upload-btn:hover, .action-btn:hover {
-      background-color: #444;
-      transform: scale(1.02);
+      transform: translateY(-2px);
+      box-shadow: 0 7px 0 rgba(30, 90, 35, 0.35), 0 12px 18px rgba(0, 30, 0, 0.25);
+    }
+
+    .file-upload-btn:active, .action-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 rgba(30, 90, 35, 0.35), 0 4px 8px rgba(0, 30, 0, 0.2);
     }
 
     input[type="file"] {
@@ -99,32 +175,45 @@
 
     /* Start Game Button */
     #startBtn {
-      background-color: #28a745;
-      color: white;
+      background: linear-gradient(180deg, #ffd24d, #ffab00);
+      color: #6b3d00;
       border: none;
-      padding: 12px 28px;
-      font-size: 18px;
-      font-weight: bold;
-      border-radius: 6px;
+      padding: 18px 42px;
+      font-family: inherit;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      border-radius: 22px;
       cursor: pointer;
-      transition: transform 0.1s, background 0.2s;
+      box-shadow: 0 6px 0 rgba(150, 90, 0, 0.55), 0 10px 18px rgba(0, 30, 0, 0.3);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
     }
 
     #startBtn:hover {
-      background-color: #218838;
-      transform: scale(1.03);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 0 rgba(150, 90, 0, 0.55), 0 14px 20px rgba(0, 30, 0, 0.3);
+    }
+
+    #startBtn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 rgba(150, 90, 0, 0.55), 0 4px 8px rgba(0, 30, 0, 0.25);
     }
 
     .instructions-text {
       font-size: 13px;
-      color: #aaa;
-      margin-top: 5px;
-      line-height: 1.5;
+      color: rgba(255,255,255,0.95);
+      background: rgba(20, 70, 20, 0.28);
+      padding: 10px 16px;
+      border-radius: 14px;
+      margin-top: 4px;
+      line-height: 1.6;
+      max-width: 560px;
     }
 
     #file-name {
       font-size: 13px;
-      color: #28a745;
+      color: rgba(255,255,255,0.9);
+      font-weight: 600;
     }
 
     /* Crosshair */
@@ -973,6 +1062,250 @@
       background: #444;
     }
 
+    /* Pause Menu (Esc) */
+    #pause-menu {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      backdrop-filter: blur(5px);
+    }
+
+    #pause-menu.open {
+      display: flex;
+    }
+
+    .pause-card {
+      width: min(360px, 90vw);
+      background: #202020;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 14px;
+      padding: 28px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.65);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    .pause-card h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      letter-spacing: 0.04em;
+    }
+
+    .pause-btn {
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 8px;
+      padding: 13px 16px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .pause-btn:hover {
+      background: #444;
+      transform: scale(1.02);
+    }
+
+    .pause-btn.primary {
+      background: #28a745;
+      border-color: #28a745;
+    }
+
+    .pause-btn.primary:hover {
+      background: #218838;
+    }
+
+    .pause-btn.danger {
+      background: #3a2a2a;
+      border-color: #b34141;
+      color: #ff8a8a;
+    }
+
+    .pause-btn.danger:hover {
+      background: #4a2a2a;
+    }
+
+    /* Settings Menu */
+    #settings-menu {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 51;
+      backdrop-filter: blur(5px);
+    }
+
+    #settings-menu.open {
+      display: flex;
+    }
+
+    .settings-card {
+      width: min(480px, 92vw);
+      max-height: 86vh;
+      overflow-y: auto;
+      background: #202020;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 14px;
+      padding: 26px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.65);
+      box-sizing: border-box;
+    }
+
+    .settings-card h2 {
+      margin: 0 0 18px;
+      font-size: 22px;
+    }
+
+    .settings-section-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+      margin: 20px 0 10px;
+      border-bottom: 1px solid #3b3b3b;
+      padding-bottom: 6px;
+    }
+
+    .settings-section-title:first-of-type {
+      margin-top: 0;
+    }
+
+    .settings-row {
+      margin-bottom: 16px;
+    }
+
+    .settings-row-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .settings-row-label span.value {
+      color: #4dd2ff;
+      font-weight: bold;
+    }
+
+    .settings-row input[type="range"] {
+      width: 100%;
+      accent-color: #4dd2ff;
+      cursor: pointer;
+    }
+
+    .quality-toggle {
+      display: flex;
+      gap: 8px;
+    }
+
+    .quality-btn {
+      flex: 1;
+      background: #2a2a2a;
+      color: #ccc;
+      border: 1px solid #3b3b3b;
+      border-radius: 8px;
+      padding: 9px 6px;
+      font-size: 13px;
+      font-weight: bold;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .quality-btn:hover {
+      background: #383838;
+    }
+
+    .quality-btn.active {
+      background: #4dd2ff;
+      color: #002233;
+      border-color: #4dd2ff;
+    }
+
+    .keybind-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .keybind-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 10px;
+      background: #171717;
+      border-radius: 6px;
+    }
+
+    .keybind-row span:first-child {
+      color: #999;
+    }
+
+    .keybind-row kbd {
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-family: inherit;
+      font-size: 12px;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .keybind-btn {
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: bold;
+      color: #fff;
+      white-space: nowrap;
+      cursor: pointer;
+      min-width: 60px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .keybind-btn:hover {
+      background: #444;
+      border-color: #777;
+    }
+
+    .keybind-btn.listening {
+      background: #b8860b;
+      border-color: #ffd700;
+      color: #fff;
+      animation: keybind-pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes keybind-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
     #save-toast {
       position: fixed;
       top: 20px;
@@ -1015,8 +1348,10 @@
   <div id="save-toast"></div>
 
   <div id="blocker">
+    <div class="menu-blob blob-a"></div>
+    <div class="menu-blob blob-b"></div>
     <div class="card">
-      <h1>3D Walkthrough</h1>
+      <h1><span class="word">3D</span> <span class="word">Walkthrough</span></h1>
       
       <div id="loading-status">⏳ Loading assets from vavstorage.github.io...</div>
 
@@ -1027,6 +1362,7 @@
         </label>
         <button id="worldsBtn" class="action-btn" style="background-color: #7c3aed;">🌍 Worlds</button>
         <button id="saveBtn" class="action-btn" style="background-color: #007bff;">💾 Quick Save</button>
+        <button id="titleSettingsBtn" class="action-btn" style="background-color: #555;">⚙️ Settings</button>
       </div>
 
       <span id="file-name">Default: vavstorage.github.io/model.glb</span>
@@ -1036,6 +1372,69 @@
       <div class="instructions-text">
         <b>Controls:</b> WASD to Move | Space to Jump / Fly Helicopter | Left Click to Attack / Shoot Bow<br>
         <b>Interact / Shop / Gas Station / Chest:</b> E | <b>Inventory:</b> I / TAB | <b>Use Consumable:</b> Right Click / F | <b>Drop:</b> Q | <b>Place Base (needs a Base Kit):</b> B | <b>Unbuild Base:</b> G | <b>Pause:</b> ESC
+      </div>
+    </div>
+  </div>
+
+  <div id="pause-menu">
+    <div class="pause-card">
+      <h2>⏸️ Paused</h2>
+      <button id="pauseResumeBtn" class="pause-btn primary">▶️ Resume</button>
+      <button id="pauseSettingsBtn" class="pause-btn">⚙️ Settings</button>
+      <button id="pauseSaveQuitBtn" class="pause-btn danger">💾 Save &amp; Quit</button>
+    </div>
+  </div>
+
+  <div id="settings-menu">
+    <div class="settings-card">
+      <h2>⚙️ Settings</h2>
+
+      <div class="settings-section-title">Controls</div>
+      <div class="settings-row">
+        <div class="settings-row-label"><span>Mouse Sensitivity</span><span class="value" id="sensitivityValue">1.0</span></div>
+        <input type="range" id="sensitivitySlider" min="0.2" max="3" step="0.1" value="1">
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label"><span>Field of View</span><span class="value" id="fovValue">75°</span></div>
+        <input type="range" id="fovSlider" min="60" max="110" step="1" value="75">
+      </div>
+
+      <div class="settings-section-title">Graphics</div>
+      <div class="settings-row">
+        <div class="settings-row-label"><span>Render Distance / Quality</span></div>
+        <div class="quality-toggle">
+          <button type="button" class="quality-btn" data-quality="low">Low</button>
+          <button type="button" class="quality-btn" data-quality="medium">Medium</button>
+          <button type="button" class="quality-btn" data-quality="high">High</button>
+        </div>
+      </div>
+
+      <div class="settings-section-title">Key Bindings</div>
+      <p class="multiplayer-status" style="margin-top: -6px;">Click a key, then press the new key you want. Press Esc to cancel.</p>
+      <div class="keybind-list">
+        <div class="keybind-row"><span>Move Forward</span><button type="button" class="keybind-btn" data-action="moveForward"></button></div>
+        <div class="keybind-row"><span>Move Left</span><button type="button" class="keybind-btn" data-action="moveLeft"></button></div>
+        <div class="keybind-row"><span>Move Backward</span><button type="button" class="keybind-btn" data-action="moveBackward"></button></div>
+        <div class="keybind-row"><span>Move Right</span><button type="button" class="keybind-btn" data-action="moveRight"></button></div>
+        <div class="keybind-row"><span>Look Around</span><kbd>Mouse</kbd></div>
+        <div class="keybind-row"><span>Sprint</span><button type="button" class="keybind-btn" data-action="sprint"></button></div>
+        <div class="keybind-row"><span>Jump / Fly Helicopter</span><button type="button" class="keybind-btn" data-action="jump"></button></div>
+        <div class="keybind-row"><span>Attack / Shoot Bow</span><kbd>Left Click</kbd></div>
+        <div class="keybind-row"><span>Use Consumable</span><button type="button" class="keybind-btn" data-action="useItem"></button></div>
+        <div class="keybind-row"><span>Interact / Mine</span><button type="button" class="keybind-btn" data-action="interact"></button></div>
+        <div class="keybind-row"><span>Inventory</span><button type="button" class="keybind-btn" data-action="inventory"></button></div>
+        <div class="keybind-row"><span>Drop Item</span><button type="button" class="keybind-btn" data-action="drop"></button></div>
+        <div class="keybind-row"><span>Place Base</span><button type="button" class="keybind-btn" data-action="placeBase"></button></div>
+        <div class="keybind-row"><span>Unbuild Base</span><button type="button" class="keybind-btn" data-action="unbuildBase"></button></div>
+        <div class="keybind-row"><span>Hotbar Slot</span><kbd>1 – 9</kbd></div>
+        <div class="keybind-row"><span>Cycle Hotbar</span><kbd>Scroll Wheel</kbd></div>
+        <div class="keybind-row"><span>Multiplayer Menu</span><button type="button" class="keybind-btn" data-action="multiplayerMenu"></button></div>
+        <div class="keybind-row"><span>Pause Menu</span><kbd>Esc</kbd></div>
+      </div>
+      <button type="button" id="resetKeybindsBtn" class="action-btn" style="margin-top: 4px;">↺ Reset Key Bindings</button>
+
+      <div class="settings-actions">
+        <button id="settingsBackBtn" class="pause-btn">⬅ Back</button>
       </div>
     </div>
   </div>
@@ -1308,15 +1707,113 @@
     const arrowCountDisplay = document.getElementById('arrow-count');
     const fileInput = document.getElementById('fileInput');
     const fileNameDisplay = document.getElementById('file-name');
+    const pauseMenu = document.getElementById('pause-menu');
+    const settingsMenu = document.getElementById('settings-menu');
 
     const controls = new PointerLockControls(camera, document.body);
 
     let isShopOpen = false;
     let isInventoryOpen = false;
     let isChestOpen = false;
+    let isPauseMenuOpen = false;
+    let isSettingsOpen = false;
+    let settingsReturnTo = 'pause'; // 'pause' | 'title' — where Settings' Back button should return to
+
+    // --- Settings (mouse sensitivity, FOV, graphics quality) ---
+    const SETTINGS_KEY = '3d_fps_settings_v1';
+    let gameSettings = { sensitivity: 1.0, fov: 75, quality: 'high' };
+
+    // --- Rebindable key bindings ---
+    const KEYBINDS_KEY = '3d_fps_keybinds_v1';
+    const defaultKeyBindings = {
+      moveForward: 'KeyW',
+      moveLeft: 'KeyA',
+      moveBackward: 'KeyS',
+      moveRight: 'KeyD',
+      sprint: 'ShiftLeft',
+      jump: 'Space',
+      interact: 'KeyE',
+      inventory: 'KeyI',
+      useItem: 'KeyF',
+      drop: 'KeyQ',
+      placeBase: 'KeyB',
+      unbuildBase: 'KeyG',
+      cheatConsole: 'F7',
+      multiplayerMenu: 'F10',
+    };
+    let keyBindings = Object.assign({}, defaultKeyBindings);
+    const keybindLabels = {
+      moveForward: 'Move Forward', moveLeft: 'Move Left', moveBackward: 'Move Backward', moveRight: 'Move Right',
+      sprint: 'Sprint', jump: 'Jump / Fly Helicopter', interact: 'Interact / Mine', inventory: 'Inventory',
+      useItem: 'Use Consumable', drop: 'Drop Item', placeBase: 'Place Base', unbuildBase: 'Unbuild Base',
+      cheatConsole: 'Cheat Console', multiplayerMenu: 'Multiplayer Menu',
+    };
+    // Codes that stay fixed no matter what — can't be captured for a rebind.
+    const reservedKeyCodes = ['Escape', 'Tab', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'];
+    let isCapturingKeybind = false;
+    let captureAction = null;
+    let captureBtnEl = null;
+
+    function prettyKeyName(code) {
+      if (!code) return '?';
+      if (code.startsWith('Key')) return code.slice(3);
+      if (code.startsWith('Digit')) return code.slice(5);
+      const arrows = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
+      if (arrows[code]) return arrows[code];
+      if (code === 'ShiftLeft' || code === 'ShiftRight') return 'Shift';
+      if (code === 'ControlLeft' || code === 'ControlRight') return 'Ctrl';
+      if (code === 'AltLeft' || code === 'AltRight') return 'Alt';
+      return code;
+    }
+
+    function loadKeyBindings() {
+      try {
+        const raw = localStorage.getItem(KEYBINDS_KEY);
+        if (raw) Object.assign(keyBindings, JSON.parse(raw));
+      } catch (e) {
+        console.error('Could not read key bindings:', e);
+      }
+    }
+
+    function persistKeyBindings() {
+      try {
+        localStorage.setItem(KEYBINDS_KEY, JSON.stringify(keyBindings));
+      } catch (e) {
+        console.error('Could not save key bindings:', e);
+      }
+    }
+
+    function findActionByCode(code) {
+      return Object.keys(keyBindings).find(a => keyBindings[a] === code);
+    }
+
+    function renderKeybindsUI() {
+      document.querySelectorAll('.keybind-btn').forEach(btn => {
+        const action = btn.dataset.action;
+        btn.textContent = prettyKeyName(keyBindings[action]);
+      });
+    }
+
+    function cancelCaptureKeybind() {
+      if (!isCapturingKeybind) return;
+      isCapturingKeybind = false;
+      captureAction = null;
+      captureBtnEl = null;
+      renderKeybindsUI();
+    }
+
+    function startCaptureKeybind(action, btn) {
+      if (isCapturingKeybind) cancelCaptureKeybind();
+      isCapturingKeybind = true;
+      captureAction = action;
+      captureBtnEl = btn;
+      document.querySelectorAll('.keybind-btn').forEach(b => b.classList.remove('listening'));
+      btn.classList.add('listening');
+      btn.textContent = 'Press a key…';
+    }
 
     startBtn.addEventListener('click', () => {
-      controls.lock();
+      openWorldsMenu();
     });
 
     controls.addEventListener('lock', () => {
@@ -1328,15 +1825,27 @@
       isShopOpen = false;
       isInventoryOpen = false;
       isChestOpen = false;
+      closePauseMenu();
+      closeSettingsMenu();
     });
 
+    // Pressing Escape (or anything else that exits pointer lock) opens the pause
+    // menu instead of dumping straight back to the title screen — unless another
+    // overlay is already handling its own lock/unlock (shop, inventory, chest,
+    // cheat console, multiplayer menu, worlds menu all manage themselves).
     controls.addEventListener('unlock', () => {
-      if (!isShopOpen && !isInventoryOpen && !isChestOpen) {
-        blocker.style.display = 'flex';
-      }
+      if (isShopOpen || isInventoryOpen || isChestOpen) return;
+      if (isCheatMenuOpen) return;
+      if (multiplayerMenu && multiplayerMenu.classList.contains('open')) return;
+      if (worldsModal && worldsModal.classList.contains('open')) return;
+      openPauseMenu();
     });
 
     scene.add(controls.getObject());
+
+    loadSettings();
+    applySettings();
+    loadKeyBindings();
 
 
     // --- WebRTC MULTIPLAYER (PeerJS) ---
@@ -3691,10 +4200,117 @@
     function openWorldsMenu() {
       renderWorldsList();
       worldsModal.classList.add('open');
+      setTimeout(() => newWorldNameInput && newWorldNameInput.focus(), 50);
     }
 
     function closeWorldsMenu() {
       worldsModal.classList.remove('open');
+    }
+
+    // --- Settings persistence & application ---
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (raw) Object.assign(gameSettings, JSON.parse(raw));
+      } catch (e) {
+        console.error('Could not read settings:', e);
+      }
+    }
+
+    function persistSettings() {
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(gameSettings));
+      } catch (e) {
+        console.error('Could not save settings:', e);
+      }
+    }
+
+    function applyGraphicsQuality(tier) {
+      const presets = {
+        low:    { pixelRatio: 1,                                      fogFar: 55  },
+        medium: { pixelRatio: Math.min(window.devicePixelRatio, 1.5), fogFar: 100 },
+        high:   { pixelRatio: Math.min(window.devicePixelRatio, 2),   fogFar: 160 }
+      };
+      const p = presets[tier] || presets.high;
+      renderer.setPixelRatio(p.pixelRatio);
+      if (scene.fog) scene.fog.far = p.fogFar;
+    }
+
+    function applySettings() {
+      controls.pointerSpeed = gameSettings.sensitivity;
+      camera.fov = gameSettings.fov;
+      camera.updateProjectionMatrix();
+      applyGraphicsQuality(gameSettings.quality);
+    }
+
+    function updateQualityButtonsUI() {
+      document.querySelectorAll('.quality-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.quality === gameSettings.quality);
+      });
+    }
+
+    function populateSettingsUI() {
+      const sensSlider = document.getElementById('sensitivitySlider');
+      const fovSlider = document.getElementById('fovSlider');
+      sensSlider.value = gameSettings.sensitivity;
+      document.getElementById('sensitivityValue').textContent = gameSettings.sensitivity.toFixed(1);
+      fovSlider.value = gameSettings.fov;
+      document.getElementById('fovValue').textContent = gameSettings.fov + '°';
+      updateQualityButtonsUI();
+      renderKeybindsUI();
+    }
+
+    // --- Pause Menu (Esc) ---
+    function openPauseMenu() {
+      isPauseMenuOpen = true;
+      pauseMenu.classList.add('open');
+    }
+
+    function closePauseMenu() {
+      isPauseMenuOpen = false;
+      pauseMenu.classList.remove('open');
+    }
+
+    function resumeGame() {
+      closeSettingsMenu();
+      closePauseMenu();
+      controls.lock();
+    }
+
+    // --- Settings Menu (reachable from the title screen or the pause menu) ---
+    function openSettingsMenu(from) {
+      settingsReturnTo = from;
+      populateSettingsUI();
+      if (from === 'pause') pauseMenu.classList.remove('open');
+      isSettingsOpen = true;
+      settingsMenu.classList.add('open');
+    }
+
+    function closeSettingsMenu() {
+      isSettingsOpen = false;
+      cancelCaptureKeybind();
+      settingsMenu.classList.remove('open');
+      if (settingsReturnTo === 'pause' && isPauseMenuOpen) {
+        pauseMenu.classList.add('open');
+      }
+    }
+
+    // Saves into whichever world is active (if any) and drops the player back
+    // at the title screen, mirroring quickSaveActiveWorld() but without its
+    // "open the worlds list" fallback, since there's nothing useful to save
+    // into if no world was ever selected.
+    function saveAndQuitGame() {
+      const world = getActiveWorld();
+      if (world) {
+        world.data = buildSaveDataObject();
+        world.map = currentLoadedFileName;
+        world.updatedAt = Date.now();
+        persistWorlds();
+        showToast(`💾 Saved "${world.name}"`);
+      }
+      closeSettingsMenu();
+      closePauseMenu();
+      blocker.style.display = 'flex';
     }
 
     // --- F7 Secret Terminal ---
@@ -4369,6 +4985,50 @@
     });
     document.getElementById('saveBtn').addEventListener('click', quickSaveActiveWorld);
 
+    document.getElementById('titleSettingsBtn').addEventListener('click', () => openSettingsMenu('title'));
+    document.getElementById('pauseResumeBtn').addEventListener('click', resumeGame);
+    document.getElementById('pauseSettingsBtn').addEventListener('click', () => openSettingsMenu('pause'));
+    document.getElementById('pauseSaveQuitBtn').addEventListener('click', saveAndQuitGame);
+    document.getElementById('settingsBackBtn').addEventListener('click', closeSettingsMenu);
+
+    document.querySelectorAll('.keybind-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        startCaptureKeybind(btn.dataset.action, btn);
+      });
+    });
+
+    document.getElementById('resetKeybindsBtn').addEventListener('click', () => {
+      cancelCaptureKeybind();
+      keyBindings = Object.assign({}, defaultKeyBindings);
+      persistKeyBindings();
+      renderKeybindsUI();
+      showToast('↺ Key bindings reset to default');
+    });
+
+    document.getElementById('sensitivitySlider').addEventListener('input', (e) => {
+      gameSettings.sensitivity = parseFloat(e.target.value);
+      document.getElementById('sensitivityValue').textContent = gameSettings.sensitivity.toFixed(1);
+      applySettings();
+      persistSettings();
+    });
+
+    document.getElementById('fovSlider').addEventListener('input', (e) => {
+      gameSettings.fov = parseInt(e.target.value, 10);
+      document.getElementById('fovValue').textContent = gameSettings.fov + '°';
+      applySettings();
+      persistSettings();
+    });
+
+    document.querySelectorAll('.quality-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        gameSettings.quality = btn.dataset.quality;
+        applySettings();
+        persistSettings();
+        updateQualityButtonsUI();
+      });
+    });
+
     // Autosave the active world periodically while playing, and once more on the
     // way out, so progress survives an accidental tab close.
     setInterval(() => {
@@ -4393,13 +5053,37 @@
 
     // Keyboard Controls
     const onKeyDown = (e) => {
-      if (e.code === 'F7') {
+      // Capturing a new key for a rebind takes priority over everything else.
+      if (isCapturingKeybind) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.code === 'Escape') {
+          cancelCaptureKeybind();
+          return;
+        }
+        if (reservedKeyCodes.includes(e.code)) {
+          showToast(`⚠️ "${prettyKeyName(e.code)}" is reserved and can't be rebound.`);
+          return;
+        }
+        const conflict = findActionByCode(e.code);
+        if (conflict && conflict !== captureAction) {
+          showToast(`⚠️ "${prettyKeyName(e.code)}" is already used for ${keybindLabels[conflict]}.`);
+          return;
+        }
+        keyBindings[captureAction] = e.code;
+        persistKeyBindings();
+        showToast(`✅ ${keybindLabels[captureAction]} → ${prettyKeyName(e.code)}`);
+        cancelCaptureKeybind();
+        return;
+      }
+
+      if (e.code === keyBindings.cheatConsole) {
         e.preventDefault();
         toggleCheatMenu();
         return;
       }
 
-      if (e.code === 'F10') {
+      if (e.code === keyBindings.multiplayerMenu) {
         e.preventDefault();
         if (multiplayerMenu && multiplayerMenu.classList.contains('open')) closeMultiplayerMenu();
         else openMultiplayerMenu();
@@ -4425,38 +5109,49 @@
           closeWorldsMenu();
           return;
         }
+        if (isSettingsOpen) {
+          closeSettingsMenu();
+          return;
+        }
+        if (isPauseMenuOpen) {
+          resumeGame();
+          return;
+        }
         if (isShopOpen) closeShop();
         if (isInventoryOpen) closeInventory();
         if (isChestOpen) closeChest();
         return;
       }
 
-      if (isShopOpen || isInventoryOpen || isChestOpen || isCheatMenuOpen) return;
+      if (isShopOpen || isInventoryOpen || isChestOpen || isCheatMenuOpen || isPauseMenuOpen || isSettingsOpen) return;
+
+      if (e.code === keyBindings.moveForward || e.code === 'ArrowUp') { moveForward = true; return; }
+      if (e.code === keyBindings.moveLeft || e.code === 'ArrowLeft') { moveLeft = true; return; }
+      if (e.code === keyBindings.moveBackward || e.code === 'ArrowDown') { moveBackward = true; return; }
+      if (e.code === keyBindings.moveRight || e.code === 'ArrowRight') { moveRight = true; return; }
+      if (e.code === keyBindings.sprint || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { isShiftPressed = true; return; }
+      if (e.code === keyBindings.jump) {
+        isSpacePressed = true;
+        const activeItem = inventory[selectedSlot];
+        if (!activeItem || !activeItem.name.includes('Helicopter')) performJump();
+        return;
+      }
+      if (e.code === keyBindings.interact) {
+        isEKeyDown = true;
+        if (hoveredObject && hoveredObject.userData.isMineable) {
+          if (miningTarget !== hoveredObject) startMining(hoveredObject);
+        } else {
+          handleInteraction();
+        }
+        return;
+      }
+      if (e.code === keyBindings.inventory) { toggleInventory(); return; }
+      if (e.code === keyBindings.useItem) { useSelectedItem(); return; }
+      if (e.code === keyBindings.drop) { if (controls.isLocked) dropSelectedItem(); return; }
+      if (e.code === keyBindings.placeBase) { if (controls.isLocked) placeBaseAtCrosshair(); return; }
+      if (e.code === keyBindings.unbuildBase) { if (controls.isLocked) unbuildBaseAtCrosshair(); return; }
 
       switch (e.code) {
-        case 'KeyW': case 'ArrowUp': moveForward = true; break;
-        case 'KeyA': case 'ArrowLeft': moveLeft = true; break;
-        case 'KeyS': case 'ArrowDown': moveBackward = true; break;
-        case 'KeyD': case 'ArrowRight': moveRight = true; break;
-        case 'ShiftLeft': case 'ShiftRight': isShiftPressed = true; break;
-        case 'Space':
-          isSpacePressed = true;
-          const activeItem = inventory[selectedSlot];
-          if (!activeItem || !activeItem.name.includes('Helicopter')) performJump();
-          break;
-        case 'KeyE':
-          isEKeyDown = true;
-          if (hoveredObject && hoveredObject.userData.isMineable) {
-            if (miningTarget !== hoveredObject) startMining(hoveredObject);
-          } else {
-            handleInteraction();
-          }
-          break;
-        case 'KeyI': toggleInventory(); break;
-        case 'KeyF': useSelectedItem(); break;
-        case 'KeyQ': if (controls.isLocked) dropSelectedItem(); break;
-        case 'KeyB': if (controls.isLocked) placeBaseAtCrosshair(); break;
-        case 'KeyG': if (controls.isLocked) unbuildBaseAtCrosshair(); break;
         case 'Digit1': selectedSlot = 0; updateInventoryUI(); break;
         case 'Digit2': selectedSlot = 1; updateInventoryUI(); break;
         case 'Digit3': selectedSlot = 2; updateInventoryUI(); break;
@@ -4470,15 +5165,14 @@
     };
 
     const onKeyUp = (e) => {
-      switch (e.code) {
-        case 'KeyW': case 'ArrowUp': moveForward = false; break;
-        case 'KeyA': case 'ArrowLeft': moveLeft = false; break;
-        case 'KeyS': case 'ArrowDown': moveBackward = false; break;
-        case 'KeyD': case 'ArrowRight': moveRight = false; break;
-        case 'ShiftLeft': case 'ShiftRight': isShiftPressed = false; break;
-        case 'Space': isSpacePressed = false; break;
-        case 'KeyE': isEKeyDown = false; cancelMining(); break;
-      }
+      if (isCapturingKeybind) return;
+      if (e.code === keyBindings.moveForward || e.code === 'ArrowUp') { moveForward = false; return; }
+      if (e.code === keyBindings.moveLeft || e.code === 'ArrowLeft') { moveLeft = false; return; }
+      if (e.code === keyBindings.moveBackward || e.code === 'ArrowDown') { moveBackward = false; return; }
+      if (e.code === keyBindings.moveRight || e.code === 'ArrowRight') { moveRight = false; return; }
+      if (e.code === keyBindings.sprint || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { isShiftPressed = false; return; }
+      if (e.code === keyBindings.jump) { isSpacePressed = false; return; }
+      if (e.code === keyBindings.interact) { isEKeyDown = false; cancelMining(); return; }
     };
 
     window.addEventListener('wheel', (e) => {
