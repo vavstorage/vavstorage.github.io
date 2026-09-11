@@ -1062,6 +1062,139 @@
       background: #444;
     }
 
+    /* Info Modal (Change Log / Credits) */
+    #info-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 55;
+      backdrop-filter: blur(5px);
+    }
+
+    #info-modal.open {
+      display: flex;
+    }
+
+    .info-card {
+      width: min(560px, 92vw);
+      max-height: 82vh;
+      background: #202020;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.65);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-card h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .info-tabs {
+      display: flex;
+      gap: 8px;
+      margin: 14px 0;
+    }
+
+    .info-tab-btn {
+      flex: 1;
+      background: #171717;
+      border: 1px solid #444;
+      color: #ccc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .info-tab-btn.active {
+      background: #2f8f34;
+      border-color: #2f8f34;
+      color: #fff;
+    }
+
+    .info-panel {
+      overflow-y: auto;
+      padding-right: 4px;
+      display: none;
+    }
+
+    .info-panel.active {
+      display: block;
+    }
+
+    .changelog-entry {
+      margin-bottom: 16px;
+    }
+
+    .changelog-entry:last-child {
+      margin-bottom: 0;
+    }
+
+    .changelog-version {
+      font-weight: bold;
+      font-size: 15px;
+      color: #7fd67f;
+      margin-bottom: 4px;
+    }
+
+    .changelog-date {
+      color: #888;
+      font-size: 12px;
+      font-weight: normal;
+      margin-left: 6px;
+    }
+
+    .changelog-entry ul {
+      margin: 6px 0 0;
+      padding-left: 20px;
+      color: #ddd;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .credits-section {
+      margin-bottom: 16px;
+    }
+
+    .credits-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .credits-heading {
+      font-weight: bold;
+      font-size: 14px;
+      color: #7fd67f;
+      margin-bottom: 6px;
+    }
+
+    .credits-section p,
+    .credits-section ul {
+      margin: 0;
+      padding-left: 20px;
+      color: #ddd;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .credits-section p {
+      padding-left: 0;
+    }
+
+    .info-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
     /* Pause Menu (Esc) */
     #pause-menu {
       position: fixed;
@@ -1363,6 +1496,7 @@
         <button id="worldsBtn" class="action-btn" style="background-color: #7c3aed;">🌍 Worlds</button>
         <button id="saveBtn" class="action-btn" style="background-color: #007bff;">💾 Quick Save</button>
         <button id="titleSettingsBtn" class="action-btn" style="background-color: #555;">⚙️ Settings</button>
+        <button id="infoBtn" class="action-btn" style="background-color: #444;">ℹ️ Info</button>
       </div>
 
       <span id="file-name">Default: vavstorage.github.io/model.glb</span>
@@ -1499,6 +1633,58 @@
 
       <div class="multiplayer-actions">
         <button id="close-worlds-menu" class="action-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="info-modal" aria-hidden="true">
+    <div class="info-card">
+      <h2>ℹ️ Info</h2>
+
+      <div class="info-tabs">
+        <button type="button" id="changelogTabBtn" class="info-tab-btn active">📜 Change Log</button>
+        <button type="button" id="creditsTabBtn" class="info-tab-btn">🙌 Credits</button>
+      </div>
+
+      <div id="changelog-panel" class="info-panel active">
+        <div class="changelog-entry">
+          <div class="changelog-version">v1.0 — Current Release</div>
+          <ul>
+            <li>Explorable 3D world loaded from a GLB map, with support for overriding it with your own model file</li>
+            <li>Persistent Worlds system — create, rename, and delete separate saves, each with its own map, inventory, coins, and bases</li>
+            <li>Quick Save / Quick Load and automatic settings persistence</li>
+            <li>Combat: melee attacks and bow shooting against ground enemies and patrolling enemy helicopters</li>
+            <li>Mining deposits, an inventory/hotbar system, consumable items, shops, and a gas station</li>
+            <li>Placeable bases that provide cover from enemy fire and can be unbuilt</li>
+            <li>Leveling and XP from defeating enemies</li>
+            <li>Online multiplayer via peer-to-peer hosting and joining</li>
+            <li>Configurable settings: mouse sensitivity, field of view, graphics quality, and full key rebinding</li>
+            <li>Developer terminal for cheats/commands</li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="credits-panel" class="info-panel">
+        <div class="credits-section">
+          <div class="credits-heading">Created By</div>
+          <p>snoopy9989</p>
+        </div>
+        <div class="credits-section">
+          <div class="credits-heading">Built With</div>
+          <ul>
+            <li>Three.js — 3D rendering engine</li>
+            <li>PeerJS — peer-to-peer multiplayer networking</li>
+            <li>Fredoka (Google Fonts) — UI typeface</li>
+          </ul>
+        </div>
+        <div class="credits-section">
+          <div class="credits-heading">Special Thanks</div>
+          <p>brogamer654 gemini(starter) chatgpt(multiplayer) claude()</p>
+        </div>
+      </div>
+
+      <div class="info-actions">
+        <button id="close-info-menu" class="action-btn">Close</button>
       </div>
     </div>
   </div>
@@ -4979,6 +5165,34 @@
 
     document.getElementById('worldsBtn').addEventListener('click', openWorldsMenu);
     document.getElementById('close-worlds-menu').addEventListener('click', closeWorldsMenu);
+
+    // --- Info modal (Change Log / Credits) ---
+    const infoModal = document.getElementById('info-modal');
+    const changelogTabBtn = document.getElementById('changelogTabBtn');
+    const creditsTabBtn = document.getElementById('creditsTabBtn');
+    const changelogPanel = document.getElementById('changelog-panel');
+    const creditsPanel = document.getElementById('credits-panel');
+
+    function openInfoMenu() {
+      infoModal.classList.add('open');
+    }
+
+    function closeInfoMenu() {
+      infoModal.classList.remove('open');
+    }
+
+    function showInfoTab(tab) {
+      const isChangelog = tab === 'changelog';
+      changelogTabBtn.classList.toggle('active', isChangelog);
+      creditsTabBtn.classList.toggle('active', !isChangelog);
+      changelogPanel.classList.toggle('active', isChangelog);
+      creditsPanel.classList.toggle('active', !isChangelog);
+    }
+
+    document.getElementById('infoBtn').addEventListener('click', openInfoMenu);
+    document.getElementById('close-info-menu').addEventListener('click', closeInfoMenu);
+    changelogTabBtn.addEventListener('click', () => showInfoTab('changelog'));
+    creditsTabBtn.addEventListener('click', () => showInfoTab('credits'));
     document.getElementById('createWorldBtn').addEventListener('click', createNewWorld);
     newWorldNameInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); createNewWorld(); }
