@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VAV File Viewer</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      padding: 20px;
+      margin: 0;
+    }
+    h1 {
+      font-size: 1.5rem;
+    }
+    #file-name {
+      color: #00e676;
+      font-weight: bold;
+    }
+    pre {
+      background: #1e1e1e;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      border: 1px solid #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>VAV App Viewer</h1>
+  <p id="file-name">No file loaded yet. Open a .vav file via ChromeOS Files App.</p>
+  <pre id="file-content">Waiting for file input...</pre>
+
+  <script src="app.js"></script>
+</body>
+</html>
