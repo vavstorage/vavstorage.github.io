@@ -5,34 +5,48 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VAV File Viewer</title>
   <link rel="manifest" href="manifest.json">
+  <!-- JSZip for parsing .vav archives -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
       background-color: #121212;
       color: #ffffff;
-      padding: 20px;
+      padding: 0;
       margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 12px 20px;
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
     }
     h1 {
-      font-size: 1.5rem;
+      font-size: 1.2rem;
+      margin: 0 0 4px 0;
     }
     #file-name {
       color: #00e676;
       font-weight: bold;
+      font-size: 0.9rem;
+      margin: 0;
     }
-    pre {
-      background: #1e1e1e;
-      padding: 15px;
-      border-radius: 6px;
-      overflow-x: auto;
-      border: 1px solid #333;
+    #app-frame {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #ffffff;
     }
   </style>
 </head>
 <body>
-  <h1>VAV App Viewer</h1>
-  <p id="file-name">No file loaded yet. Open a .vav file via ChromeOS Files App.</p>
-  <pre id="file-content">Waiting for file input...</pre>
+  <header>
+    <h1>VAV App Viewer</h1>
+    <p id="file-name">No file loaded yet. Open a .vav file via ChromeOS Files App.</p>
+  </header>
+  <iframe id="app-frame" title="VAV App Output"></iframe>
 
   <script src="app.js"></script>
 </body>
