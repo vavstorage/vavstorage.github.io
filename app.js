@@ -7,12 +7,11 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Utility to escape regex special characters
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// MIME Type resolver
+// MIME Type resolver including WebP
 function getMimeType(fileName) {
   if (fileName.endsWith('.html')) return 'text/html';
   if (fileName.endsWith('.css')) return 'text/css';
@@ -20,15 +19,15 @@ function getMimeType(fileName) {
   if (fileName.endsWith('.json')) return 'application/json';
   if (fileName.endsWith('.png')) return 'image/png';
   if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) return 'image/jpeg';
+  if (fileName.endsWith('.webp')) return 'image/webp';
   if (fileName.endsWith('.svg')) return 'image/svg+xml';
   return 'application/octet-stream';
 }
 
-// Extract and prepare .vav package
 async function renderVavFile(file) {
   const zip = await JSZip.loadAsync(file);
 
-  // 1. Normalize paths in archive (strip leading ./ or /)
+  // 1. Normalize paths
   const fileEntries = {};
   for (const path of Object.keys(zip.files)) {
     if (!zip.files[path].dir) {
@@ -37,7 +36,7 @@ async function renderVavFile(file) {
     }
   }
 
-  // 2. Identify manifest or main html entry point
+  // 2. Identify main HTML entry point
   let mainHtmlPath = null;
   const manifestEntry = fileEntries['name.json'] || fileEntries['manifest.json'];
 
@@ -85,7 +84,7 @@ async function renderVavFile(file) {
     }
   }
 
-  // 5. Resolve relative attribute references (src, href, action) in main HTML
+  // 5. Resolve static HTML attributes
   let htmlContent = await fileEntries[mainHtmlPath].async('string');
   for (const [assetPath, blobUrl] of Object.entries(blobUrls)) {
     if (assetPath !== mainHtmlPath) {
@@ -94,27 +93,69 @@ async function renderVavFile(file) {
     }
   }
 
+  // 6. Inject runtime interceptor for dynamically populated JavaScript assets
+  const interceptorScript = `
+    <script>
+      (function() {
+        const assets = ${JSON.stringify(blobUrls)};
+        const originalDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+        Object.defineProperty(HTMLImageElement.prototype, 'src', {
+          get: function() {
+            return originalDescriptor.get.call(this);
+          },
+          set: function(val) {
+            const key = val.replace(/^\\.\\//, '').replace(/^\\//, '');
+            if (assets[key]) {
+              return originalDescriptor.set.call(this, assets[key]);
+            }
+            return originalDescriptor.set.call(this, val);
+          }
+        });
+      })();
+    </script>
+  `;
+
+  if (htmlContent.includes('<head>')) {
+    htmlContent = htmlContent.replace('<head>', '<head>' + interceptorScript);
+  } else {
+    htmlContent = interceptorScript + htmlContent;
+  }
+
   return htmlContent;
 }
 
-// Launch queue consumer for ChromeOS Files App
+// Process loaded file
+async function processFile(file) {
+  document.getElementById('file-name').textContent = `Loaded File: ${file.name}`;
+  try {
+    const htmlContent = await renderVavFile(file);
+    const frame = document.getElementById('app-frame');
+    frame.srcdoc = htmlContent;
+    console.log(`Successfully rendered ${file.name}`);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('file-name').textContent = `Error loading ${file.name}: ${err.message}`;
+  }
+}
+
+// Event Listener for Manual File Input
+document.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.getElementById('file-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        processFile(e.target.files[0]);
+      }
+    });
+  }
+});
+
+// Consumer for ChromeOS Launch Queue
 if ('launchQueue' in window) {
   launchQueue.setConsumer(async (launchParams) => {
     if (!launchParams.files || !launchParams.files.length) return;
-
     const fileHandle = launchParams.files[0];
     const file = await fileHandle.getFile();
-
-    document.getElementById('file-name').textContent = `Loaded File: ${file.name}`;
-
-    try {
-      const htmlContent = await renderVavFile(file);
-      const frame = document.getElementById('app-frame');
-      frame.srcdoc = htmlContent;
-      console.log(`Successfully rendered ${file.name}`);
-    } catch (err) {
-      console.error(err);
-      document.getElementById('file-name').textContent = `Error loading ${file.name}: ${err.message}`;
-    }
+    processFile(file);
   });
 }

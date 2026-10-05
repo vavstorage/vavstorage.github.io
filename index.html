@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VAV File Viewer</title>
   <link rel="manifest" href="manifest.json">
-  <!-- JSZip for parsing .vav archives -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     body {
@@ -22,6 +21,13 @@
       padding: 12px 20px;
       background: #1a1a1a;
       border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+    }
+    .header-info {
+      flex: 1;
     }
     h1 {
       font-size: 1.2rem;
@@ -33,6 +39,14 @@
       font-size: 0.9rem;
       margin: 0;
     }
+    #file-input {
+      background: #2a2a2a;
+      color: #fff;
+      padding: 6px 12px;
+      border: 1px solid #444;
+      border-radius: 6px;
+      cursor: pointer;
+    }
     #app-frame {
       flex: 1;
       width: 100%;
@@ -43,8 +57,11 @@
 </head>
 <body>
   <header>
-    <h1>VAV App Viewer</h1>
-    <p id="file-name">No file loaded yet. Open a .vav file via ChromeOS Files App.</p>
+    <div class="header-info">
+      <h1>VAV App Viewer</h1>
+      <p id="file-name">No file loaded yet. Choose a file below or open via ChromeOS.</p>
+    </div>
+    <input type="file" id="file-input" accept=".vav,.zip">
   </header>
   <iframe id="app-frame" title="VAV App Output"></iframe>
 
