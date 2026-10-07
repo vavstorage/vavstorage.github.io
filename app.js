@@ -131,6 +131,13 @@ async function processFile(file) {
     const htmlContent = await renderVavFile(file);
     const frame = document.getElementById('app-frame');
     frame.srcdoc = htmlContent;
+
+    // Auto-hide top header bar when file loads successfully
+    const header = document.querySelector('header');
+    if (header) {
+      header.classList.add('autohide');
+    }
+
     console.log(`Successfully rendered ${file.name}`);
   } catch (err) {
     console.error(err);
